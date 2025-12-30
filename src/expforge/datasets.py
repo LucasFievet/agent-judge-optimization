@@ -72,6 +72,8 @@ def load_images(manifest: pd.DataFrame, root: Path) -> np.ndarray:
     images_dir = root / "images"
     imgs = []
     for rel_path in manifest["path"]:
-        img = Image.open(images_dir / rel_path).convert("L")
+        # Extract just the filename from the path (which may include "images/" prefix)
+        img_path = images_dir / Path(rel_path).name
+        img = Image.open(img_path).convert("L")
         imgs.append(np.array(img))
     return np.stack(imgs, axis=0)

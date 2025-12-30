@@ -1,0 +1,8 @@
+# Add local google-cloud-sdk to PATH
+export PATH="$PWD/google-cloud-sdk/bin:$PATH"
+
+# Set GCP project for this folder (scopes gcloud to this project)
+# This overrides the global gcloud config project setting
+# Replace with your own GCP project ID
+export GOOGLE_CLOUD_PROJECT="your-project-id"
+
