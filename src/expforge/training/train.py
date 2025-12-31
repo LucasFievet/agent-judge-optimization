@@ -6,8 +6,12 @@ Vertex AI integration (Experiments, TensorBoard, Model Registry) is always enabl
 """
 
 import argparse
+import warnings
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
+
+# Suppress FutureWarning about np.object from keras/tf2onnx
+warnings.filterwarnings("ignore", category=FutureWarning, message=".*np.object.*")
 
 import tensorflow as tf
 
