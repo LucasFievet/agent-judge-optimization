@@ -19,6 +19,7 @@ runs/
 
 # Google Cloud SDK
 google-cloud-sdk/
+python-aiplatform/
 google-cloud-cli*.tar.gz
 
 # IDE
