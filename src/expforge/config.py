@@ -20,11 +20,11 @@ class ExpforgeConfig:
     tensorboard_name: str
     
     # Custom Training Job defaults
-    machine_type: str
-    accelerator_type: Optional[str]
-    accelerator_count: int
-    container_uri: str
-    serving_container_image_uri: str
+    machine_type: str = ""
+    accelerator_type: Optional[str] = None
+    accelerator_count: int = 0
+    container_uri: str = ""
+    serving_container_image_uri: str = ""
     
     # Data paths
     data_root_gcs: str = "data"  # Relative path in GCS bucket for datasets
@@ -63,6 +63,8 @@ class ExpforgeConfig:
                 project_id=os.getenv("GOOGLE_CLOUD_PROJECT"),
                 location=os.getenv("GOOGLE_CLOUD_REGION"),
                 bucket_name=os.getenv("EXPFORGE_BUCKET_NAME"),
+                experiment_name=os.getenv("EXPFORGE_EXPERIMENT_NAME"),
+                tensorboard_name=os.getenv("EXPFORGE_TENSORBOARD_NAME"),
             )
         
         # Local: load from file

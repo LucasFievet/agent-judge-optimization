@@ -1,4 +1,4 @@
-"""Simplified Custom Training Job for Vertex AI using aiplatform.CustomTrainingJob."""
+"""Custom Training Job for Vertex AI using manual packaging with packageUris and pythonModule."""
 
 from __future__ import annotations
 
@@ -9,12 +9,13 @@ from pathlib import Path
 from typing import Optional
 
 from google.cloud import aiplatform
+from google.cloud import storage
 
 from expforge.config import ExpforgeConfig, load_config
 
 
 class CustomTrainingJobManager:
-    """Simplified manager for Custom Training Jobs using aiplatform.CustomTrainingJob."""
+    """Manager for Custom Training Jobs using manual packaging with packageUris and pythonModule."""
 
     def __init__(self, config: Optional[ExpforgeConfig] = None):
         """
@@ -31,41 +32,94 @@ class CustomTrainingJobManager:
             staging_bucket=staging_bucket,
         )
 
+    def _build_and_upload_package(self, project_root: Path) -> str:
+        """
+        Build source distribution and upload to GCS.
+        
+        Args:
+            project_root: Path to project root directory
+            
+        Returns:
+            GCS URI of uploaded package
+        """
+        # Build source distribution
+        print("Building source distribution...", flush=True)
+        setup_py = project_root / "setup.py"
+        if not setup_py.exists():
+            raise FileNotFoundError(
+                f"setup.py not found at {setup_py}. "
+                "Please ensure setup.py exists in project root."
+            )
+        
+        # Run setup.py sdist
+        result = subprocess.run(
+            ["python3", "setup.py", "sdist", "--formats=gztar"],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        print(result.stdout, flush=True)
+        if result.stderr:
+            print(result.stderr, flush=True)
+        
+        # Find the created distribution file
+        dist_dir = project_root / "dist"
+        dist_files = list(dist_dir.glob("expforge-*.tar.gz"))
+        if not dist_files:
+            raise FileNotFoundError(
+                f"No source distribution found in {dist_dir}. "
+                "Build may have failed."
+            )
+        
+        # Get the most recent distribution file
+        dist_file = max(dist_files, key=lambda p: p.stat().st_mtime)
+        print(f"✓ Built source distribution: {dist_file.name}", flush=True)
+        
+        # Upload to GCS
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        gcs_path = f"packages/expforge-{timestamp}.tar.gz"
+        gcs_uri = f"gs://{self.config.bucket_name}/{gcs_path}"
+        
+        print(f"Uploading to {gcs_uri}...", flush=True)
+        client = storage.Client(project=self.config.project_id)
+        bucket = client.bucket(self.config.bucket_name)
+        blob = bucket.blob(gcs_path)
+        blob.upload_from_filename(str(dist_file))
+        
+        print(f"✓ Uploaded package to {gcs_uri}", flush=True)
+        return gcs_uri
+
     def create_and_submit_job(
         self,
         epochs: int = 10,
         batch_size: int = 32,
         learning_rate: float = 0.001,
         resume_from: Optional[str] = None,
-        machine_type: Optional[str] = None,
-        accelerator_type: Optional[str] = None,
-        accelerator_count: int = 0,
         sync: bool = False,
     ):
         """
-        Create and submit a Custom Training Job using aiplatform.CustomTrainingJob.
+        Create and submit a Custom Training Job using manual packaging.
         
-        This automatically packages the training script and all dependencies,
-        uploads to GCS, and runs it in Vertex AI.
+        Builds a source distribution from setup.py, uploads it to GCS, and uses
+        CustomPythonPackageTrainingJob with packageUris and pythonModule to ensure
+        the full expforge package structure is available.
         
         Args:
             epochs: Number of training epochs
             batch_size: Batch size
             learning_rate: Learning rate
             resume_from: Optional checkpoint name to resume from (None = start fresh, "latest" = use latest)
-            machine_type: Machine type (defaults to config)
-            accelerator_type: Accelerator type (defaults to config)
-            accelerator_count: Number of accelerators (defaults to config)
             sync: Whether to wait for job completion
         
         Returns:
-            CustomTrainingJob object
+            CustomPythonPackageTrainingJob object
         """
-        # Find project root to locate training script
+        # Find project root
         def find_project_root(start_path: Path) -> Path:
             """Find project root by looking for common marker files."""
             current = start_path.resolve()
-            markers = ["pyproject.toml", "README.md", "requirements.txt"]
+            markers = ["pyproject.toml", "README.md", "setup.py"]
             
             while current != current.parent:
                 for marker in markers:
@@ -77,11 +131,6 @@ class CustomTrainingJobManager:
             return start_path.resolve().parent.parent.parent.parent
         
         project_root = find_project_root(Path(__file__))
-        
-        # Path to the training script - CustomTrainingJob will package everything automatically
-        script_path = project_root / "src" / "expforge" / "training" / "train.py"
-        if not script_path.exists():
-            raise FileNotFoundError(f"Training script not found: {script_path}")
         
         # Build script arguments - same as train.py main()
         script_args = [
@@ -95,59 +144,55 @@ class CustomTrainingJobManager:
         elif resume_from:
             script_args.append(f"--resume-from={resume_from}")
         
-        # Requirements - CustomTrainingJob will install these
-        requirements = [
-            "tensorflow>=2.11.0",
-            "numpy>=1.23.0",
-            "pandas>=2.0.0",
-            "pillow>=9.0.0",
-            "google-cloud-aiplatform>=1.38.0",
-            "google-cloud-storage>=2.10.0",
-        ]
+        display_name = f"{self.config.experiment_name}-training-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
         
-        # Create CustomTrainingJob - it handles packaging automatically!
-        display_name = f"triple-mnist-training-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-        job = aiplatform.CustomTrainingJob(
+        # Build source distribution and upload to GCS
+        # This properly packages the entire expforge package structure
+        package_uri = self._build_and_upload_package(project_root)
+        
+        # Use CustomPythonPackageTrainingJob which is designed for packageUris + pythonModule
+        # This ensures the full expforge package is available and imports work correctly
+        job = aiplatform.CustomPythonPackageTrainingJob(
             display_name=display_name,
-            script_path=str(script_path),
-            container_uri="us-docker.pkg.dev/vertex-ai/training/tf-cpu.2-17.py310:latest",
-            requirements=requirements,
+            python_package_gcs_uri=package_uri,
+            python_module_name="expforge.training.train",
+            container_uri=self.config.serving_container_image_uri,
+            project=self.config.project_id,
+            location=self.config.location,
         )
         
-        # Build machine spec
-        machine_spec = {
-            "machine_type": machine_type or self.config.machine_type,
+        # Build environment variables as a dict (format expected by run() method)
+        env_vars = {
+            "GOOGLE_CLOUD_PROJECT": self.config.project_id,
+            "GOOGLE_CLOUD_REGION": self.config.location,
+            "EXPFORGE_BUCKET_NAME": self.config.bucket_name,
+            "EXPFORGE_EXPERIMENT_NAME": self.config.experiment_name,
+            "EXPFORGE_TENSORBOARD_NAME": self.config.tensorboard_name,
         }
         
-        # Determine accelerator settings
-        final_accelerator_type = accelerator_type or self.config.accelerator_type
-        final_accelerator_count = accelerator_count if accelerator_count is not None else self.config.accelerator_count
-        
-        # Only add accelerator if we have both a valid type and count > 0
-        if final_accelerator_type and final_accelerator_count > 0:
-            machine_spec["accelerator_type"] = final_accelerator_type
-            machine_spec["accelerator_count"] = final_accelerator_count
-        
-        # Run the job
-        # CustomTrainingJob.run() handles everything: packaging, uploading, and running
-        # Only pass accelerator parameters if we have valid values
+        # Build run arguments directly from config
         run_kwargs = {
             "args": script_args,
             "replica_count": 1,
-            "machine_type": machine_spec["machine_type"],
+            "machine_type": self.config.machine_type,
             "sync": sync,
+            "environment_variables": env_vars,
         }
         
-        # Only add accelerator parameters if we have valid values
-        if "accelerator_type" in machine_spec:
-            run_kwargs["accelerator_type"] = machine_spec["accelerator_type"]
-            run_kwargs["accelerator_count"] = machine_spec["accelerator_count"]
+        # Add accelerator if configured
+        if self.config.accelerator_type and self.config.accelerator_count > 0:
+            run_kwargs["accelerator_type"] = self.config.accelerator_type
+            run_kwargs["accelerator_count"] = self.config.accelerator_count
         
         result = job.run(**run_kwargs)
         
         # If sync=True, run() returns a Model (or None if no model was created)
         # If sync=False, run() returns None but the job is submitted
         return result if sync else job
+
+    def _extract_job_id(self, resource_name: str) -> str:
+        """Extract job ID from full resource name."""
+        return resource_name.split("/")[-1] if "/" in resource_name else resource_name
 
     def get_latest_job_id(self) -> Optional[str]:
         """Get the ID of the most recent custom training job."""
@@ -157,7 +202,7 @@ class CustomTrainingJobManager:
                 "gcloud", "ai", "custom-jobs", "list",
                 f"--project={self.config.project_id}",
                 f"--region={self.config.location}",
-                "--filter=displayName:triple-mnist-training-*",
+                f"--filter=displayName:{self.config.experiment_name}-training-*",
                 "--sort-by=~createTime",
                 "--limit=1",
                 "--format=value(name)",
@@ -165,16 +210,16 @@ class CustomTrainingJobManager:
             
             result = subprocess.run(cmd, capture_output=True, text=True, check=False)
             if result.returncode == 0 and result.stdout.strip():
-                # Extract job ID from full resource name
-                resource_name = result.stdout.strip()
-                if "/" in resource_name:
-                    return resource_name.split("/")[-1]
-                return resource_name
+                return self._extract_job_id(result.stdout.strip())
             
             return None
         except Exception as e:
             print(f"Error finding latest job: {e}", flush=True)
             return None
+
+    def _get_console_url(self, job_id: str) -> str:
+        """Get console URL for viewing logs."""
+        return f"https://console.cloud.google.com/logs/viewer?project={self.config.project_id}&resource=ml_job%2Fjob_id%2F{job_id}"
 
     def view_logs(self, job_id: Optional[str] = None, follow: bool = False, lines: int = 100):
         """View logs for a custom training job."""
@@ -185,8 +230,7 @@ class CustomTrainingJobManager:
                 return
         
         # Extract job ID if full resource name is provided
-        if "/" in job_id:
-            job_id = job_id.split("/")[-1]
+        job_id = self._extract_job_id(job_id)
         
         # Build gcloud logging command - use value format for compact one-line output
         filter_expr = (
@@ -227,13 +271,13 @@ class CustomTrainingJobManager:
                 # For non-follow mode, just run and print output
                 result = subprocess.run(cmd, check=False)
                 if result.returncode != 0:
-                    print(f"\nView logs in console: https://console.cloud.google.com/logs/viewer?project={self.config.project_id}&resource=ml_job%2Fjob_id%2F{job_id}", flush=True)
+                    print(f"\nView logs in console: {self._get_console_url(job_id)}", flush=True)
         except FileNotFoundError:
             print("Error: gcloud CLI not found. Please install it or view logs in the console:", flush=True)
-            print(f"https://console.cloud.google.com/logs/viewer?project={self.config.project_id}&resource=ml_job%2Fjob_id%2F{job_id}", flush=True)
+            print(self._get_console_url(job_id), flush=True)
         except Exception as e:
             print(f"Error viewing logs: {e}", flush=True)
-            print(f"View logs in console: https://console.cloud.google.com/logs/viewer?project={self.config.project_id}&resource=ml_job%2Fjob_id%2F{job_id}", flush=True)
+            print(f"View logs in console: {self._get_console_url(job_id)}", flush=True)
 
 
 def main():
