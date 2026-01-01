@@ -80,7 +80,7 @@ def deploy_checkpoint(
         if model_name is None:
             model_name = f"triple-mnist-model-{checkpoint_name}"
         
-        gcs_model_path = f"gs://{config.bucket_name}/models/{model_name}/{timestamp}"
+        gcs_model_path = f"{config.model_dir}/{model_name}/{timestamp}"
         
         print(f"Uploading SavedModel to {gcs_model_path}...", flush=True)
         client = storage.Client(project=config.project_id)

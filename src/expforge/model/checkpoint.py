@@ -28,7 +28,7 @@ def _gsutil_args(*args: str) -> list[str]:
 def get_checkpoint_dir_gcs() -> str:
     """Get GCS checkpoint directory."""
     config = load_config()
-    return f"gs://{config.bucket_name}/checkpoints"
+    return config.checkpoint_dir
 
 
 def list_checkpoints() -> list[dict]:

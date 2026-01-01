@@ -16,14 +16,14 @@ from google.cloud import aiplatform
 class VertexManager:
     """Manager for Vertex AI resources."""
     
-    def __init__(self, config: Optional[ExpforgeConfig] = None):
+    def __init__(self):
         """
         Initialize Vertex Manager.
         
         Args:
             config: Vertex AI configuration (defaults to loaded config)
         """
-        self.config = config if config else load_config()
+        self.config = load_config()
         self._initialized = False
     
     def _ensure_initialized(self):

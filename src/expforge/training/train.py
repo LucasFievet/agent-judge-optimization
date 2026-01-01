@@ -26,7 +26,7 @@ from expforge.model.checkpoint import (
 )
 from expforge.config import load_config, ExpforgeConfig
 from expforge.vertex.experiment import get_or_create_experiment
-from expforge.vertex.tensorboard import get_or_create_tensorboard, get_tensorboard_log_dir
+from expforge.vertex.tensorboard import get_or_create_tensorboard
 from expforge.vertex.run import create_run, end_run
 from expforge.vertex.metrics import create_metrics_callback, log_metrics
 
@@ -134,7 +134,7 @@ def train(
     
     # TensorBoard callback - extract run name from run object
     run_name = run.name.split('/')[-1] if '/' in run.name else run.name
-    tensorboard_log_dir = get_tensorboard_log_dir(config, run_name)
+    tensorboard_log_dir = f"{config.tensorboard_log_dir}/{config.experiment_name}/{run_name}"
     
     callbacks.append(
         tf.keras.callbacks.TensorBoard(

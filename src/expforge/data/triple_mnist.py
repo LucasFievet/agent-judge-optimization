@@ -175,7 +175,7 @@ def main():
             return
         
         config = load_config()
-        gcs_path = f"gs://{config.bucket_name}/{config.data_path}"
+        gcs_path = f"gs://{config.bucket_name}/{config.data_root_gcs}"
         print(f"Uploading triple MNIST dataset from {triple_mnist_base} to {gcs_path}...", flush=True)
         upload_to_gcs(triple_mnist_base, gcs_path)
         return

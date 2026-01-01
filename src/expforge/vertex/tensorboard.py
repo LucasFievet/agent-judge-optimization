@@ -47,17 +47,3 @@ def check_tensorboard_access(config: ExpforgeConfig) -> tuple[bool, Optional[str
         return True, None
     return False, f"TensorBoard '{config.tensorboard_name}' not accessible"
 
-
-def get_tensorboard_log_dir(config: ExpforgeConfig, run_name: str) -> str:
-    """
-    Get TensorBoard log directory (GCS path).
-    
-    Args:
-        config: Configuration
-        run_name: Name of the run
-    
-    Returns:
-        GCS path for TensorBoard logs
-    """
-    return f"gs://{config.bucket_name}/tensorboard/{config.experiment_name}/{run_name}"
-
