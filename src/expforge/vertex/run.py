@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 from google.cloud.aiplatform import ExperimentRun
 
 
 def create_run(
-    experiment,
+    experiment: Union[str, Any],
     run_name: Optional[str] = None,
     tensorboard=None,
     metadata: Optional[Dict[str, Any]] = None,
@@ -18,7 +18,7 @@ def create_run(
     Create a new experiment run.
     
     Args:
-        experiment: Vertex AI Experiment object
+        experiment: Vertex AI Experiment object or experiment name (str)
         run_name: Name for the run (auto-generated if None)
         tensorboard: Optional TensorBoard object
         metadata: Optional metadata to log as parameters
@@ -32,7 +32,7 @@ def create_run(
     run = ExperimentRun.create(
         run_name=run_name,
         experiment=experiment,
-        tensorboard=tensorboard if tensorboard else None,
+        tensorboard=tensorboard,
     )
     run._run_name = run_name
     

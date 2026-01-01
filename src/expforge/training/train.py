@@ -61,16 +61,10 @@ def train(
     from google.cloud import aiplatform
     aiplatform.init(project=config.project_id, location=config.location)
     
-    # Get or create experiment and tensorboard
-    experiment, _ = get_or_create_experiment(config, create=True)
+    # Get experiment name (assumes it exists, created by manager)
+    # ExperimentRun.create() accepts experiment name as string
+    experiment = config.experiment_name
     tensorboard, _ = get_or_create_tensorboard(config, create=True)
-    
-    # Link tensorboard to experiment
-    if experiment and tensorboard:
-        try:
-            experiment.assign_backing_tensorboard(tensorboard)
-        except Exception:
-            pass  # Already linked or not needed
     
     # Determine checkpoint to resume from
     if resume_from == "latest":
