@@ -8,6 +8,7 @@
   "accelerator_type": null,
   "accelerator_count": 0,
   "container_uri": "gcr.io/cloud-aiplatform/training/tf-cpu.2-11:latest",
-  "serving_container_image_uri": "us-docker.pkg.dev/vertex-ai/prediction/tf2-cpu.2-11:latest"
+  "serving_container_image_uri": "us-docker.pkg.dev/vertex-ai/prediction/tf2-cpu.2-11:latest",
+  "service_account": null
 }
 

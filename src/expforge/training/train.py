@@ -87,7 +87,10 @@ def train(
     existing_run_name = os.environ.get("EXPFORGE_RUN_NAME")
     if existing_run_name:
         print(f"Using existing experiment run: {existing_run_name}", flush=True)
-        run = ExperimentRun.get(run_name=existing_run_name)
+        run = ExperimentRun.get(
+            run_name=existing_run_name,
+            experiment=experiment,
+        )
     else:
         metadata = {
             "epochs": epochs,

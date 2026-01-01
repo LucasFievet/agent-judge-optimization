@@ -189,6 +189,10 @@ class CustomTrainingJobManager:
             "EXPFORGE_RUN_NAME": run.name,
         }
         
+        # Add service account if configured
+        if self.config.service_account:
+            env_vars["EXPFORGE_SERVICE_ACCOUNT"] = self.config.service_account
+        
         # Build run arguments directly from config
         run_kwargs = {
             "args": script_args,

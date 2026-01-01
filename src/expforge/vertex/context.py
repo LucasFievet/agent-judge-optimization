@@ -42,10 +42,17 @@ def _ensure_initialized() -> None:
         if _config is None:
             _config = _load_config()
         
-        aiplatform.init(
-            project=_config.project_id,
-            location=_config.location,
-            staging_bucket=_config.bucket_name,
-        )
+        init_kwargs = {
+            "project": _config.project_id,
+            "location": _config.location,
+            "staging_bucket": _config.bucket_name,
+            "experiment": _config.experiment_name,
+            "experiment_tensorboard": True,
+        }
+        
+        # Only add service_account if configured
+        if _config.service_account:
+            init_kwargs["service_account"] = _config.service_account
+        
+        aiplatform.init(**init_kwargs)
         _initialized = True
-

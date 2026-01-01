@@ -25,6 +25,7 @@ class ExpforgeConfig:
     accelerator_count: int = 0
     container_uri: str = ""
     serving_container_image_uri: str = ""
+    service_account: Optional[str] = None
     
     # Data paths
     data_root_gcs: str = "data"  # Relative path in GCS bucket for datasets
@@ -47,7 +48,11 @@ class ExpforgeConfig:
     
     def to_dict(self) -> dict:
         """Convert to dictionary."""
-        return asdict(self)
+        result = asdict(self)
+        # Convert Path objects to strings for JSON serialization
+        if isinstance(result.get('data_root_local'), Path):
+            result['data_root_local'] = str(result['data_root_local'])
+        return result
     
     @classmethod
     def from_dict(cls, data: dict) -> ExpforgeConfig:
@@ -65,6 +70,7 @@ class ExpforgeConfig:
                 bucket_name=os.getenv("EXPFORGE_BUCKET_NAME"),
                 experiment_name=os.getenv("EXPFORGE_EXPERIMENT_NAME"),
                 tensorboard_name=os.getenv("EXPFORGE_TENSORBOARD_NAME"),
+                service_account=os.getenv("EXPFORGE_SERVICE_ACCOUNT"),
             )
         
         # Local: load from file
