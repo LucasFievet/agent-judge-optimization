@@ -201,12 +201,19 @@ def main():
     print(f"Epochs: {args.epochs}, Batch size: {args.batch_size}, Learning rate: {args.learning_rate}", flush=True)
     print("=" * 80, flush=True)
     
-    # Download all data from GCS (contains train/, val/, test/ subdirectories)
-    data_root_gcs = f"gs://{config.bucket_name}/{config.data_root_gcs}"
-    data_root = Path("/tmp/triple-mnist/data")
-    
-    print("\nDownloading data from GCS...", flush=True)
-    download_from_gcs(data_root_gcs, data_root)
+    # Use mounted GCS path if available (Vertex AI automatically mounts buckets under /gcs)
+    # Otherwise download for local development
+    gcs_mount_path = Path(f"/gcs/{config.bucket_name}/{config.data_root_gcs}")
+    if gcs_mount_path.exists():
+        # Vertex AI custom job: use mounted GCS path directly (no download needed)
+        data_root = gcs_mount_path
+        print(f"\nUsing mounted GCS path: {data_root}", flush=True)
+    else:
+        # Local development: download from GCS
+        data_root_gcs = f"gs://{config.bucket_name}/{config.data_root_gcs}"
+        data_root = Path("/tmp/triple-mnist/data")
+        print(f"\nDownloading data from GCS ({data_root_gcs})...", flush=True)
+        download_from_gcs(data_root_gcs, data_root)
     
     # Call unified train function
     model, history, run, test_metrics = train(
