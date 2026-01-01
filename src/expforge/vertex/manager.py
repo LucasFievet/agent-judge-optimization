@@ -3,34 +3,19 @@
 from __future__ import annotations
 
 import sys
-from typing import Optional
 
-from expforge.config import load_config, ExpforgeConfig
 from expforge.vertex.bucket import get_or_create_bucket, check_bucket_access
+from expforge.vertex.context import get_config
 from expforge.vertex.experiment import get_or_create_experiment, check_experiment_access
 from expforge.vertex.tensorboard import get_or_create_tensorboard, check_tensorboard_access
-
-from google.cloud import aiplatform
 
 
 class VertexManager:
     """Manager for Vertex AI resources."""
     
     def __init__(self):
-        """
-        Initialize Vertex Manager.
-        
-        Args:
-            config: Vertex AI configuration (defaults to loaded config)
-        """
-        self.config = load_config()
-        self._initialized = False
-    
-    def _ensure_initialized(self):
-        """Initialize Vertex AI platform if not already done."""
-        if not self._initialized:
-            aiplatform.init(project=self.config.project_id, location=self.config.location)
-            self._initialized = True
+        """Initialize Vertex Manager."""
+        self.config = get_config()
     
     def check(self) -> dict:
         """
@@ -39,13 +24,9 @@ class VertexManager:
         Returns:
             Dictionary with check results
         """
-        self._ensure_initialized()
-        
-        # Compute values
         project_ok = False
         project_error = None
         try:
-            aiplatform.init(project=self.config.project_id, location=self.config.location)
             project_ok = True
         except Exception as e:
             error_msg = str(e)
@@ -140,16 +121,8 @@ Summary:
         Returns:
             Dictionary with creation results
         """
-        self._ensure_initialized()
-        
-        # Compute values
-        project_ok = False
+        project_ok = True
         project_error = None
-        try:
-            aiplatform.init(project=self.config.project_id, location=self.config.location)
-            project_ok = True
-        except Exception as e:
-            project_error = f"Failed to initialize: {e}"
         
         if not project_ok:
             template = "Initializing Vertex AI...\n   ✗ {error}\n"

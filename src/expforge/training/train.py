@@ -6,6 +6,7 @@ Vertex AI integration (Experiments, TensorBoard, Model Registry) is always enabl
 """
 
 import argparse
+import os
 import warnings
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -24,11 +25,12 @@ from expforge.model.checkpoint import (
     save_checkpoint,
     get_latest_checkpoint_name,
 )
-from expforge.config import load_config, ExpforgeConfig
-from expforge.vertex.experiment import get_or_create_experiment
+from expforge.config import ExpforgeConfig
+from expforge.vertex.context import get_config
 from expforge.vertex.tensorboard import get_or_create_tensorboard
-from expforge.vertex.run import create_run, end_run
+from expforge.vertex.run import create_run
 from expforge.vertex.metrics import create_metrics_callback, log_metrics
+from google.cloud.aiplatform import ExperimentRun
 
 
 def train(
@@ -37,7 +39,7 @@ def train(
     batch_size: int = 32,
     learning_rate: float = 0.001,
     resume_from: Optional[str] = None,
-    config: Optional[ExpforgeConfig] = None,
+    config: ExpforgeConfig = None,
 ) -> Tuple[tf.keras.Model, tf.keras.callbacks.History, Optional[Any], Optional[Dict[str, float]]]:
     """
     Train the triple MNIST model with Vertex AI integration.
@@ -53,16 +55,7 @@ def train(
     Returns:
         Tuple of (model, history, experiment_run, test_metrics)
     """
-    # Setup Vertex AI resources
-    if config is None:
-        config = load_config()
     
-    # Initialize Vertex AI
-    from google.cloud import aiplatform
-    aiplatform.init(project=config.project_id, location=config.location)
-    
-    # Get experiment name (assumes it exists, created by manager)
-    # ExperimentRun.create() accepts experiment name as string
     experiment = config.experiment_name
     tensorboard, _ = get_or_create_tensorboard(config, create=True)
     
@@ -91,20 +84,24 @@ def train(
         model = create_triple_mnist_model()
         print("Starting training from scratch", flush=True)
     
-    # Start experiment run
-    metadata = {
-        "epochs": epochs,
-        "batch_size": batch_size,
-        "learning_rate": learning_rate,
-    }
-    if checkpoint_name:
-        metadata.update({"resume_from": checkpoint_name, "initial_epoch": initial_epoch})
-    
-    run = create_run(
-        experiment=experiment,
-        tensorboard=tensorboard,
-        metadata=metadata,
-    )
+    existing_run_name = os.environ.get("EXPFORGE_RUN_NAME")
+    if existing_run_name:
+        print(f"Using existing experiment run: {existing_run_name}", flush=True)
+        run = ExperimentRun.get(run_name=existing_run_name)
+    else:
+        metadata = {
+            "epochs": epochs,
+            "batch_size": batch_size,
+            "learning_rate": learning_rate,
+        }
+        if checkpoint_name:
+            metadata.update({"resume_from": checkpoint_name, "initial_epoch": initial_epoch})
+        
+        run = create_run(
+            experiment=experiment,
+            tensorboard=tensorboard,
+            metadata=metadata,
+        )
     
     # Prepare data
     X_train, y_train, X_val, y_val, X_test, y_test = prepare_data_for_training(data_root)
@@ -124,23 +121,15 @@ def train(
     )
     
     # Setup callbacks
-    callbacks = []
-    
-    # TensorBoard callback - extract run name from run object
-    run_name = run.name.split('/')[-1] if '/' in run.name else run.name
-    tensorboard_log_dir = f"{config.tensorboard_log_dir}/{config.experiment_name}/{run_name}"
-    
-    callbacks.append(
+    callbacks = [
         tf.keras.callbacks.TensorBoard(
-            log_dir=tensorboard_log_dir,
+            log_dir=config.tensorboard_log_dir,
             histogram_freq=1,
             write_graph=True,
             update_freq='epoch',
-        )
-    )
-    
-    # Vertex AI metrics callback
-    callbacks.append(create_metrics_callback(run))
+        ),
+        create_metrics_callback(run)
+    ]
     
     # Train
     validation_data = (X_val, y_val) if X_val is not None else None
@@ -174,8 +163,7 @@ def train(
     )
     print(f"✓ Saved final checkpoint: {final_checkpoint_name} (epoch {last_epoch})", flush=True)
     
-    # End Vertex AI run
-    end_run(run)
+    run.end_run()
     
     return model, history, run, test_metrics
 
@@ -189,11 +177,8 @@ def main():
     parser.add_argument("--resume-from", type=str, default=None, help="Resume from specific checkpoint name")
     args = parser.parse_args()
     
-    # Determine resume_from
     resume_from = "latest" if args.resume else args.resume_from
-    
-    # Load config
-    config = load_config()
+    config = get_config()
     
     print("=" * 80, flush=True)
     print("Starting training script with Vertex AI", flush=True)
@@ -201,21 +186,16 @@ def main():
     print(f"Epochs: {args.epochs}, Batch size: {args.batch_size}, Learning rate: {args.learning_rate}", flush=True)
     print("=" * 80, flush=True)
     
-    # Use mounted GCS path if available (Vertex AI automatically mounts buckets under /gcs)
-    # Otherwise download for local development
     gcs_mount_path = Path(f"/gcs/{config.bucket_name}/{config.data_root_gcs}")
     if gcs_mount_path.exists():
-        # Vertex AI custom job: use mounted GCS path directly (no download needed)
         data_root = gcs_mount_path
         print(f"\nUsing mounted GCS path: {data_root}", flush=True)
     else:
-        # Local development: download from GCS
         data_root_gcs = f"gs://{config.bucket_name}/{config.data_root_gcs}"
         data_root = Path("/tmp/triple-mnist/data")
         print(f"\nDownloading data from GCS ({data_root_gcs})...", flush=True)
         download_from_gcs(data_root_gcs, data_root)
     
-    # Call unified train function
     model, history, run, test_metrics = train(
         data_root=data_root,
         epochs=args.epochs,

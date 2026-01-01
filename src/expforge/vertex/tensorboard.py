@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Optional
 
-from google.cloud import aiplatform
 from google.cloud.aiplatform import Tensorboard
 
 from expforge.config import ExpforgeConfig
@@ -21,7 +20,6 @@ def get_or_create_tensorboard(config: ExpforgeConfig, create: bool = False) -> t
     Returns:
         Tuple of (tensorboard object or None, was_created: bool)
     """
-    aiplatform.init(project=config.project_id, location=config.location)
     tensorboards = Tensorboard.list(filter=f'display_name="{config.tensorboard_name}"')
     
     if tensorboards:

@@ -11,7 +11,11 @@ from typing import Optional
 from google.cloud import aiplatform
 from google.cloud import storage
 
-from expforge.config import ExpforgeConfig, load_config
+from expforge.config import ExpforgeConfig
+from expforge.vertex.context import get_config
+from expforge.vertex.experiment import get_or_create_experiment
+from expforge.vertex.tensorboard import get_or_create_tensorboard
+from expforge.vertex.run import create_run
 
 
 class CustomTrainingJobManager:
@@ -24,13 +28,7 @@ class CustomTrainingJobManager:
         Args:
             config: Vertex AI configuration (defaults to loaded config)
         """
-        self.config = config or load_config()
-        staging_bucket = f"gs://{self.config.bucket_name}"
-        aiplatform.init(
-            project=self.config.project_id,
-            location=self.config.location,
-            staging_bucket=staging_bucket,
-        )
+        self.config = config
 
     def _build_and_upload_package(self, project_root: Path) -> str:
         """
@@ -146,6 +144,25 @@ class CustomTrainingJobManager:
         
         display_name = f"{self.config.experiment_name}-training-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
         
+        # Create experiment run BEFORE launching job (uses local credentials with permissions)
+        # This avoids authentication scope issues inside the container
+        print("Creating experiment run before job launch...", flush=True)
+        experiment, _ = get_or_create_experiment(self.config, create=True)
+        tensorboard, _ = get_or_create_tensorboard(self.config, create=True)
+        
+        run = create_run(
+            experiment=experiment,
+            tensorboard=tensorboard,
+            metadata={
+                "epochs": epochs,
+                "batch_size": batch_size,
+                "learning_rate": learning_rate,
+            },
+        )
+
+        # Log run name
+        print(f"✓ Created experiment run: {run.name}", flush=True)
+        
         # Build source distribution and upload to GCS
         # This properly packages the entire expforge package structure
         package_uri = self._build_and_upload_package(project_root)
@@ -159,6 +176,7 @@ class CustomTrainingJobManager:
             container_uri=self.config.serving_container_image_uri,
             project=self.config.project_id,
             location=self.config.location,
+            staging_bucket=self.config.bucket_name,
         )
         
         # Build environment variables as a dict (format expected by run() method)
@@ -168,6 +186,7 @@ class CustomTrainingJobManager:
             "EXPFORGE_BUCKET_NAME": self.config.bucket_name,
             "EXPFORGE_EXPERIMENT_NAME": self.config.experiment_name,
             "EXPFORGE_TENSORBOARD_NAME": self.config.tensorboard_name,
+            "EXPFORGE_RUN_NAME": run.name,
         }
         
         # Build run arguments directly from config
@@ -295,7 +314,7 @@ def main():
     
     args = parser.parse_args()
     
-    config = load_config()
+    config = get_config()
     manager = CustomTrainingJobManager(config=config)
     
     # Handle --logs flag

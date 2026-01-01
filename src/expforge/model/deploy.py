@@ -10,7 +10,7 @@ from typing import Any, Optional
 
 import tensorflow as tf
 
-from expforge.config import load_config
+from expforge.vertex.context import get_config
 from expforge.model.checkpoint import (
     get_checkpoint_metadata,
     get_latest_checkpoint_name,
@@ -38,12 +38,8 @@ def deploy_checkpoint(
         print("Error: google-cloud-aiplatform not installed", flush=True)
         return None
     
-    config = load_config()
+    config = get_config()
     
-    # Initialize Vertex AI
-    aiplatform.init(project=config.project_id, location=config.location)
-    
-    # Resolve checkpoint name (default to latest)
     if checkpoint_name is None or checkpoint_name == "latest":
         resolved_name = get_latest_checkpoint_name()
         if resolved_name is None:

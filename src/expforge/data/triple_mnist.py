@@ -16,7 +16,7 @@ from PIL import Image
 from expforge.data.io import DatasetRecord, ensure_dataset_dirs, load_images, load_manifest, save_manifest
 from expforge.data.gcs_utils import download_from_gcs, upload_to_gcs
 from expforge.data.util import get_data_root
-from expforge.config import load_config
+from expforge.vertex.context import get_config
 
 
 def generate_triple_mnist(
@@ -174,7 +174,7 @@ def main():
             print(f"Error: Triple MNIST dataset not found at {triple_mnist_base}. Generate it first.", flush=True)
             return
         
-        config = load_config()
+        config = get_config()
         gcs_path = f"gs://{config.bucket_name}/{config.data_root_gcs}"
         print(f"Uploading triple MNIST dataset from {triple_mnist_base} to {gcs_path}...", flush=True)
         upload_to_gcs(triple_mnist_base, gcs_path)

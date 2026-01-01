@@ -13,7 +13,7 @@ from typing import Optional, Tuple
 
 import tensorflow as tf
 
-from expforge.config import load_config
+from expforge.vertex.context import get_config
 
 
 def _gsutil_args(*args: str) -> list[str]:
@@ -27,7 +27,7 @@ def _gsutil_args(*args: str) -> list[str]:
 
 def get_checkpoint_dir_gcs() -> str:
     """Get GCS checkpoint directory."""
-    config = load_config()
+    config = get_config()
     return config.checkpoint_dir
 
 
