@@ -34,7 +34,8 @@ def create_triple_mnist_model(input_shape=(28, 84, 1)) -> keras.Model:
     def create_digit_network():
         """Create a network that processes a single 28x28 digit image."""
         model = keras.Sequential([
-            layers.Conv2D(32, (3, 3), activation='relu', input_shape=(28, 28, 1)),
+            layers.Input(shape=(28, 28, 1)),
+            layers.Conv2D(32, (3, 3), activation='relu'),
             layers.MaxPooling2D((2, 2)),
             layers.Conv2D(64, (3, 3), activation='relu'),
             layers.MaxPooling2D((2, 2)),

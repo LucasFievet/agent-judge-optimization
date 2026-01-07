@@ -14,11 +14,11 @@ env/
 *.log
 
 # Data
-data/
-runs/
+.data/
 
 # Google Cloud SDK
 google-cloud-sdk/
+python-aiplatform/
 google-cloud-cli*.tar.gz
 
 # IDE
@@ -33,4 +33,4 @@ Thumbs.db
 
 # User-specific configuration
 .envrc
-vertex_config.json
+config.json
