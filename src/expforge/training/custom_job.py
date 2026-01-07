@@ -202,6 +202,10 @@ class CustomTrainingJobManager:
             "environment_variables": env_vars,
         }
         
+        # Add service account if configured (required for Vertex AI to run the job)
+        if self.config.service_account:
+            run_kwargs["service_account"] = self.config.service_account
+        
         # Add accelerator if configured
         if self.config.accelerator_type and self.config.accelerator_count > 0:
             run_kwargs["accelerator_type"] = self.config.accelerator_type
