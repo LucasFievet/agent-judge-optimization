@@ -22,6 +22,27 @@ source .venv/bin/activate
 pip install -e .
 ```
 
+**Making the `expforge` CLI available:** The `expforge` command is registered when you install the package. From the project root run `pip install -e .` (as above). Then you can run:
+
+```bash
+expforge simulator run dummy --sample 5
+```
+
+Without installing, use the module runner from the project root:
+
+```bash
+PYTHONPATH=src python -m expforge.cli simulator run dummy --sample 5
+```
+
+**Auto-activate venv with direnv:** The repo includes a `.envrc` that uses `layout python` so the `.venv` is activated when you `cd` into the project. You need [direnv](https://direnv.net/) installed and allowed once:
+
+```bash
+# One-time: create venv, install package, allow direnv
+python3 -m venv .venv
+direnv allow   # then cd out and back in, or open a new terminal in this dir
+# After that, pip and python point at .venv automatically; run: pip install -e .
+```
+
 ### Local Training Workflow
 
 ```bash

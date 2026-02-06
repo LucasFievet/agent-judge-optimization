@@ -16,6 +16,9 @@ env/
 # Data
 .data/
 
+# Simulator experiment outputs (persona, goals, transitions, samples, metrics)
+src/expforge/simulator/experiment/
+
 # Google Cloud SDK
 google-cloud-sdk/
 python-aiplatform/
@@ -31,6 +34,10 @@ google-cloud-cli*.tar.gz
 .DS_Store
 Thumbs.db
 
-# User-specific configuration
-.envrc
+# User-specific configuration (keep .envrc committed for direnv venv; use .envrc.local for overrides)
 config.json
+
+# Secrets (never commit)
+.env
+.envrc.local
+.env.local

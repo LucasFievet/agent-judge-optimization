@@ -1,8 +1,13 @@
-# Add local google-cloud-sdk to PATH
-export PATH="$PWD/google-cloud-sdk/bin:$PATH"
+# direnv: auto-activate Python .venv (copy to .envrc and run: direnv allow)
+# Create venv first: python3 -m venv .venv
+if [ -d .venv/bin ]; then
+  PATH_add .venv/bin
+  export VIRTUAL_ENV=$PWD/.venv
+fi
 
-# Set GCP project for this folder (scopes gcloud to this project)
-# This overrides the global gcloud config project setting
-# Replace with your own GCP project ID
-export GOOGLE_CLOUD_PROJECT="your-project-id"
+# Optional: add local google-cloud-sdk to PATH
+# export PATH="$PWD/google-cloud-sdk/bin:$PATH"
+
+# Optional: set GCP project for this folder (replace with your project ID)
+# export GOOGLE_CLOUD_PROJECT="your-project-id"
 
