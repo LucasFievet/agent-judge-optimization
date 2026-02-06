@@ -1,0 +1,126 @@
+% !TEX root = ../main.tex
+\section{Method}
+\label{sec:method}
+
+We model the interaction as nested Markov chains (Figure~\ref{fig:nested-markov}) and generate synthetic dialogues by sampling a per-trajectory user profile, state transitions, and a quality signal, then conditioning an LLM on the resulting latent state to produce user and assistant messages. The user and quality model is in \S\ref{sec:method:user}, the chain structure in \S\ref{sec:method:model}, state sampling in \S\ref{sec:method:transitions}, the generation loop in \S\ref{sec:method:generation}, and theoretical outcome and length distributions in \S\ref{sec:method:theory}.
+
+\begin{figure}[t]
+  \centering
+  \adjustbox{width=\linewidth}{\adjustbox{trim={.05\width} 0 {.05\width} 0, clip}{\includegraphics{figures/nested_markov_chain.png}}}
+  \caption{Nested Markov chain: top layer includes start, goals (e.g.\ writing-assistant tasks), outcome states (publish, subscribe), and terminals (finished, abandoned); one goal is expanded to show the per-goal sub-chain (continue, succeeded, failed). Goal-specific tools influence nested transitions; latent feedback influences the top-level chain.}
+  \label{fig:nested-markov}
+\end{figure}
+
+% -----------------------------------------------------------------------------
+\subsection{User profile and quality distribution}
+\label{sec:method:user}
+% -----------------------------------------------------------------------------
+
+At the beginning of each trajectory we draw a single multivariate \emph{user profile} $\mathbf{u}$ that stays fixed for that user and determines dialogue style and how they respond to success or failure. We use a four-dimensional vector:
+\begin{equation}
+  \mathbf{u} = (u_{\mathrm{tech}}, u_{\mathrm{det}}, u_{\mathrm{swear}}, u_{\mathrm{sent}}) \sim p(\mathbf{u}), \label{eq:user-draw}
+\end{equation}
+where $u_{\mathrm{tech}}$ encodes how technical the user is, $u_{\mathrm{det}}$ how determined (persistent), $u_{\mathrm{swear}}$ how easily they swear when frustrated, and $u_{\mathrm{sent}}$ their baseline sentiment (high = more positive). For example, $\mathbf{u} \sim \mathcal{N}(\boldsymbol{\mu}_u, \boldsymbol{\Sigma}_u)$ with bounds or truncation so components lie in $[0,1]$ or a finite range. This profile is passed into the LLM prompt so that generated messages match the user type.
+
+\paragraph{Quality signal.}
+At each step $t$ we draw a scalar quality $z_t$ that drives the tone of the turn (satisfaction or frustration). When in a goal with nested state $x_t$, the quality depends on $x_t$ and the user's baseline sentiment:
+\begin{equation}
+  z_t \sim \mathcal{N}\bigl(\mu(x_t) + \lambda_{\mathrm{sent}} u_{\mathrm{sent}},\; \sigma^2\bigr), \qquad \mu \colon \mathcal{X} \to \mathbb{R}, \quad \sigma^2 > 0. \label{eq:quality}
+\end{equation}
+E.g., $\mu(\mathsf{succeeded}) > \mu(\mathsf{continue}) > \mu(\mathsf{failed})$. When $s_t \notin \mathcal{G}$, we take $z_t \sim \mathcal{N}(\mu_0 + \lambda_{\mathrm{sent}} u_{\mathrm{sent}}, \sigma^2)$. The value $z_t$ is injected into the LLM prompt so that user and assistant messages match the intended quality level.
+
+\paragraph{Dependence of nested chain on user and tool quality.}
+The nested transition kernel for goal $g$ depends on the user profile $\mathbf{u}$ and on a \emph{tool quality} parameter $q_g \in \mathbb{R}$ (e.g., higher $q_g$ = better tool for that goal). We write
+\begin{equation}
+  x_{t+1} \sim \pi_g(\cdot \mid x_t; \mathbf{u}, q_g). \label{eq:nested-user-tool}
+\end{equation}
+A simple and interpretable assumption is to make the probability of favourable transitions increase with determination and tool quality. For example, from $\mathsf{continue}$, the probability of moving to $\mathsf{succeeded}$ rather than $\mathsf{failed}$ can be modelled with a logit-linear form:
+\begin{equation}
+  \mathbb{P}(x_{t+1} = \mathsf{succeeded} \mid x_t = \mathsf{continue}; \mathbf{u}, q_g) = \sigma\bigl(\alpha_g + \beta_{\mathrm{det}} u_{\mathrm{det}} + \gamma_g q_g\bigr), \label{eq:nested-logit}
+\end{equation}
+where $\sigma$ is the logistic function, $\alpha_g$ is a goal-specific intercept, and $\beta_{\mathrm{det}}, \gamma_g$ are coefficients. So more determined users and better tools increase the chance of success from the continue state; the converse can be assumed for $\mathsf{failed}$. Other transitions (e.g., from $\mathsf{succeeded}$ or $\mathsf{failed}$ back to $\mathsf{continue}$) can be parametrised similarly as functions of $\mathbf{u}$ and $q_g$, with constraints so that each row of the transition matrix sums to one. This yields a nested chain that is user- and tool-dependent while remaining tractable.
+
+% -----------------------------------------------------------------------------
+\subsection{Nested Markov model}
+\label{sec:method:model}
+% -----------------------------------------------------------------------------
+
+\paragraph{Top-level chain.}
+The top-level state space is
+\begin{equation}
+  \mathcal{S} = \{\mathsf{start}\} \cup \mathcal{G} \cup \{\mathsf{publish},\mathsf{subscribe}\} \cup \{\mathsf{finished},\mathsf{abandoned}\},
+\end{equation}
+where $\mathcal{G}$ is a finite set of goal states. The top-level dynamics are given by a transition kernel $\pi_{\mathrm{top}}$ that may depend on the nested outcome when in a goal:
+\begin{equation}
+  s_{t+1} \sim \pi_{\mathrm{top}}(\cdot \mid s_t, x_{t+1}), \qquad s_t, s_{t+1} \in \mathcal{S}
+\end{equation}
+(with $x_{t+1}$ irrelevant when $s_t \notin \mathcal{G}$). The states $\mathsf{finished}$ and $\mathsf{abandoned}$ are absorbing: once $s_t \in \{\mathsf{finished},\mathsf{abandoned}\}$, the trajectory stops.
+
+\paragraph{Nested chain (per goal).}
+For each goal $g \in \mathcal{G}$, the nested state space is $\mathcal{X} = \{\mathsf{succeeded},\mathsf{continue},\mathsf{failed}\}$. When $s_t = g$, we maintain $x_t \in \mathcal{X}$. The nested kernel $\pi_g(\cdot \mid x_t; \mathbf{u}, q_g)$ is as in \eqref{eq:nested-user-tool}--\eqref{eq:nested-logit}, depending on the user profile $\mathbf{u}$ and tool quality $q_g$. The outcome $x_{t+1}$ influences the next top-level state (e.g., succeeded $\to$ higher mass on publish/finished; failed $\to$ higher mass on abandoned).
+
+% -----------------------------------------------------------------------------
+\subsection{State transition sampling}
+\label{sec:method:transitions}
+% -----------------------------------------------------------------------------
+
+At each step $t$, the next state is drawn as follows.
+
+\begin{itemize}
+  \item \textbf{If $s_t \in \mathcal{G}$:} First sample the nested transition (using the current user $\mathbf{u}$ and tool quality $q_{s_t}$), then the top-level transition:
+  \begin{align}
+    x_{t+1} &\sim \pi_{s_t}(\cdot \mid x_t; \mathbf{u}, q_{s_t}), \label{eq:nested-draw} \\
+    s_{t+1} &\sim \pi_{\mathrm{top}}(\cdot \mid s_t, x_{t+1}). \label{eq:top-draw}
+  \end{align}
+
+  \item \textbf{If $s_t \in \mathcal{S} \setminus \mathcal{G}$:} There is no nested state; draw only the top-level transition:
+  \begin{equation}
+    s_{t+1} \sim \pi_{\mathrm{top}}(\cdot \mid s_t). \label{eq:top-only}
+  \end{equation}
+\end{itemize}
+
+% -----------------------------------------------------------------------------
+\subsection{Trajectory generation}
+\label{sec:method:generation}
+% -----------------------------------------------------------------------------
+
+We draw $\mathbf{u} \sim p(\mathbf{u})$ once per trajectory. We maintain latent state $(s_t, x_t, z_t)$ (with $x_t$ defined only when $s_t \in \mathcal{G}$).
+
+At each step $t$:
+\begin{enumerate}
+  \item Sample $(s_{t+1}, x_{t+1})$ from the Markov chains as in \S\ref{sec:method:transitions} (\ref{eq:nested-draw})--(\ref{eq:top-only}).
+  \item Sample quality $z_{t+1}$ from \eqref{eq:quality} (or the default Gaussian when not in a goal).
+  \item Build a prompt encoding the new latent state, user profile $\mathbf{u}$, and $z_{t+1}$. Call the LLM twice to generate the user message and the assistant response.
+  \item Set $t \leftarrow t+1$ and repeat until $s_t \in \{\mathsf{finished},\mathsf{abandoned}\}$.
+\end{enumerate}
+
+Generation stops as soon as the top-level state is $\mathsf{finished}$ or $\mathsf{abandoned}$.
+
+% -----------------------------------------------------------------------------
+\subsection{Theoretical outcome and trajectory-length distributions}
+\label{sec:method:theory}
+% -----------------------------------------------------------------------------
+
+Under a fixed user $\mathbf{u}$ and fixed tool qualities $\{q_g\}$, the joint process over $(s_t, x_t)$ is a discrete-time Markov chain on the product space of top-level and (when applicable) nested states. The top-level chain alone, when marginalised over the nested outcomes, is generally not Markov; however, if we condition on $\mathbf{u}$ and $\{q_g\}$, we can still analyse absorption and hitting probabilities by viewing the effective top-level dynamics as a (larger) Markov chain whose states encode the current goal and nested state, or by Monte Carlo. Below we give the form of the theoretical quantities when the effective dynamics are Markov (e.g., if we fix a single goal or collapse the nested chain to a summary state).
+
+\paragraph{Absorption and hitting probabilities.}
+Let the transient states be $\mathcal{T} = \mathcal{S} \setminus \{\mathsf{finished},\mathsf{abandoned}\}$. Order states so that transient states come first, then $\mathsf{finished}$, then $\mathsf{abandoned}$. The one-step transition matrix on $\mathcal{S}$ can be written in block form:
+\begin{equation}
+  \mathbf{P} = \begin{bmatrix} \mathbf{Q} & \mathbf{R} \\ \mathbf{0} & \mathbf{I} \end{bmatrix},
+\end{equation}
+where $\mathbf{Q}$ is the restriction to $\mathcal{T} \times \mathcal{T}$, $\mathbf{R}$ is $\mathcal{T} \times \{\mathsf{finished},\mathsf{abandoned}\}$, and $\mathbf{I}$ is the $2\times 2$ identity. The \emph{fundamental matrix} is $\mathbf{N} = (\mathbf{I} - \mathbf{Q})^{-1}$ (well-defined if absorption is almost sure from every transient state). Let $\boldsymbol{\alpha}$ be the initial distribution over $\mathcal{T}$ (e.g., point mass on $\mathsf{start}$). The probability of eventually being absorbed in $\mathsf{finished}$ vs $\mathsf{abandoned}$ is
+\begin{equation}
+  \mathbb{P}(\mathsf{finished}) = \boldsymbol{\alpha}' \mathbf{N} \mathbf{R}_{\mathsf{finished}}, \qquad \mathbb{P}(\mathsf{abandoned}) = \boldsymbol{\alpha}' \mathbf{N} \mathbf{R}_{\mathsf{abandoned}}, \label{eq:absorb-prob}
+\end{equation}
+where $\mathbf{R}_{\mathsf{finished}}$ and $\mathbf{R}_{\mathsf{abandoned}}$ are the columns of $\mathbf{R}$ corresponding to each absorbing state. The probability of \emph{ever visiting} a given outcome state (e.g., $\mathsf{publish}$ or $\mathsf{subscribe}$) before absorption can be obtained similarly by treating that state as a (virtual) absorbing target and solving the hitting-probability linear system: if $\mathcal{H}$ is the set of states that count as ``hit'' (e.g., $\mathsf{publish}$), then the vector $\mathbf{h}$ of hitting probabilities from each transient state satisfies $\mathbf{h} = \mathbf{r} + \mathbf{Q}\mathbf{h}$ on transient states (with boundary conditions $h_i = 1$ for $i \in \mathcal{H}$, $h_i = 0$ for other absorbing states), yielding a closed-form linear system $\mathbf{h} = (\mathbf{I}-\mathbf{Q})^{-1}\mathbf{r}$ when the target set is appropriately encoded in $\mathbf{r}$.
+
+\paragraph{Trajectory length.}
+Let $T$ be the first time $t$ such that $s_t \in \{\mathsf{finished},\mathsf{abandoned}\}$. The distribution of $T$ is a discrete phase-type distribution. The probability that absorption has not occurred by step $t$ is
+\begin{equation}
+  \mathbb{P}(T > t) = \boldsymbol{\alpha}' \mathbf{Q}^t \mathbf{1}, \label{eq:survival}
+\end{equation}
+so $\mathbb{P}(T = t) = \boldsymbol{\alpha}' \mathbf{Q}^{t-1}(\mathbf{I}-\mathbf{Q})\mathbf{1}$ for $t \geq 1$ (with the convention that $\mathbf{Q}^0 = \mathbf{I}$). The expected trajectory length is
+\begin{equation}
+  \mathbb{E}[T] = \boldsymbol{\alpha}' \mathbf{N} \mathbf{1}. \label{eq:expected-length}
+\end{equation}
+Higher moments (e.g., $\mathbb{E}[T^2]$) can be obtained from the moment-generating function or from $\mathbf{N}^2$ and higher powers. Thus the full distribution and moments are available in closed form in terms of $\mathbf{Q}$, $\mathbf{N}$, and $\boldsymbol{\alpha}$. When the effective top-level process is not exactly Markov (because of the nested chain), the same formulas apply to the \emph{augmented} chain whose states are $(s_t, x_t)$ (or a finite aggregation thereof), with $\mathbf{Q}$ and $\mathbf{R}$ defined on that augmented space; alternatively, one can approximate by averaging over the stationary distribution of the nested chain per goal to get an effective $\mathbf{Q}$ and then use \eqref{eq:absorb-prob}--\eqref{eq:expected-length} as an approximation.

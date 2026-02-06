@@ -1,0 +1,30 @@
+# LaTeX auxiliary files
+*.aux
+*.lof
+*.log
+*.lot
+*.fls
+*.out
+*.toc
+*.fmt
+*.fmt
+*.synctex.gz
+*.synctex(busy)
+*.synctex.gz(busy)
+
+# Bibliography
+*.bbl
+*.bcf
+*.blg
+*.run.xml
+
+# latexmk
+*.fdb_latexmk
+
+# Build output
+*.pdf
+*.dvi
+*.ps
+
+# Editor/IDE
+*.sublime-*

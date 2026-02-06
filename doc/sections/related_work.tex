@@ -1,0 +1,12 @@
+% !TEX root = ../main.tex
+\section{Related Work}
+\label{sec:related_work}
+
+\paragraph{Agent and trajectory evaluation.}
+Evaluating agentic systems increasingly relies on trajectory-level and judge-based metrics. \citet{zhuge2024agent} introduce Agent-as-a-Judge, using agentic systems to evaluate other agents with intermediate feedback over the full task-solving process, outperforming LLM-as-a-Judge on code-generation tasks. \citet{lu2025agentrewardbench} present AgentRewardBench, a benchmark of 1,302 web-agent trajectories with expert labels on success, side effects, and repetitiveness, and show that no single LLM judge excels across benchmarks and that rule-based evaluation underreports success. These works focus on \emph{how} to score trajectories; we focus on \emph{attributing} outcome changes to system levers (e.g., tools) in long, multi-goal trajectories.
+
+\paragraph{Goal-oriented and system-wise evaluation.}
+\citet{takanobu2020goal} argue that component-wise, single-turn evaluation can be inconsistent with overall goal-oriented performance and that system-wise evaluation and simulated users are valuable despite simulator--human discrepancy. We adopt a goal-level decomposition but model goals and sub-states explicitly (nested Markov chain) rather than relying on ad hoc clustering of turns.
+
+\paragraph{Synthetic agents for A/B testing.}
+\citet{wang2025agentab} use LLM-based agents to simulate user behavior for web A/B testing at scale (e.g., 1,000 agents on Amazon.com), enabling scalable comparison of designs without live traffic. We similarly use a synthetic simulator to study system impact, but we structure the simulator around goals and per-goal subprocesses so that interventions (e.g., tool changes) can be applied and measured at the goal level, and so that outcome metrics (e.g., publish, subscribe) can be attributed to those interventions despite long trajectories.
