@@ -10,6 +10,8 @@ from expforge.verifier.run import (
     run_verification,
     run_n_verifications,
     VerificationResult,
+    run_verification_batch_data,
+    BatchReportData,
 )
 from expforge.verifier.io import copy_experiment, load_experiment, experiment_dir, DEFAULT_EXPERIMENTS_DIR
 from expforge.verifier.multi_seed import run_verification_multi_seed
@@ -18,12 +20,15 @@ from expforge.verifier.report import (
     pass_rate_table,
     write_summary_table,
     figures,
+    figures_batch_distributions,
 )
 
 __all__ = [
     "run_verification",
     "run_n_verifications",
     "VerificationResult",
+    "run_verification_batch_data",
+    "BatchReportData",
     "copy_experiment",
     "load_experiment",
     "experiment_dir",
@@ -33,4 +38,5 @@ __all__ = [
     "pass_rate_table",
     "write_summary_table",
     "figures",
+    "figures_batch_distributions",
 ]

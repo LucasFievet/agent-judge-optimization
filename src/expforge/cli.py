@@ -8,7 +8,14 @@ import typer
 
 from expforge.simulator import run_simulator
 from expforge.scoring import run_experiment_scoring, run_experiment_compare
-from expforge.verifier import run_verification, run_n_verifications, VerificationResult, DEFAULT_EXPERIMENTS_DIR
+from expforge.verifier import (
+    run_verification,
+    run_n_verifications,
+    VerificationResult,
+    run_verification_batch_data,
+    DEFAULT_EXPERIMENTS_DIR,
+    figures_batch_distributions,
+)
 
 app = typer.Typer(help="Experiment Forge: simulator and scoring for nested Markov experiments.")
 
@@ -70,11 +77,39 @@ app.add_typer(simulator_app, name="simulator")
 scoring_app = typer.Typer(help="Score or compare experiments.")
 app.add_typer(scoring_app, name="scoring")
 
-verifier_app = typer.Typer(help="Verify theory vs simulator (fast mode).")
+verifier_app = typer.Typer(
+    help="Theory vs simulator: run (single experiment), batch (N experiments), report (tables/figures).",
+)
 app.add_typer(verifier_app, name="verifier")
 
 vertex_app = typer.Typer(help="Vertex AI: config, resources, and custom training jobs.")
 app.add_typer(vertex_app, name="vertex")
+
+
+def _run_batch_verification(
+    n: int,
+    source: str,
+    sample_sizes: list[int],
+    base_dir: Path,
+    seed: int,
+    confidence: float,
+) -> None:
+    """Shared logic: run N verifications and print pass/fail summary."""
+    results = run_n_verifications(
+        n_experiments=n,
+        source_experiment=source,
+        base_dir=base_dir,
+        sample_sizes=sample_sizes,
+        seed=seed,
+        confidence=confidence,
+    )
+    for r in results:
+        typer.echo(f"{r.experiment_id}: {'PASS' if r.passed else 'FAIL'}")
+        if not r.passed:
+            _echo_verification_details(r)
+            typer.echo("  (One or more metrics fell outside the 95% CI at some n; can be sampling variance.)")
+    passed = sum(1 for r in results if r.passed)
+    typer.echo(f"Passed {passed}/{n}")
 
 
 @app.command("verify")
@@ -90,27 +125,10 @@ def verify_cmd(
     seed: int = typer.Option(42, "--seed", "-s", help="Base random seed (seed+i per verifier_i)"),
     confidence: float = typer.Option(0.95, "--confidence", help="Confidence level for intervals"),
 ) -> None:
-    """
-    Generate N verification experiments (verifier_1 .. verifier_N), run simulator once per
-    experiment with max(sample_sizes) samples, verify theory at each sample size by subsampling.
-    """
+    """Alias for 'verifier batch': run N verification experiments (verifier_1 .. verifier_N), print pass X/N."""
     base = base_dir or DEFAULT_EXPERIMENTS_DIR
     sizes = [int(x.strip()) for x in sample_sizes.split(",") if x.strip()] or [200, 500, 1000]
-    results = run_n_verifications(
-        n_experiments=n,
-        source_experiment=source,
-        base_dir=base,
-        sample_sizes=sizes,
-        seed=seed,
-        confidence=confidence,
-    )
-    for r in results:
-        typer.echo(f"{r.experiment_id}: {'PASS' if r.passed else 'FAIL'}")
-        if not r.passed:
-            _echo_verification_details(r)
-            typer.echo("  (One or more metrics fell outside the 95% CI at some n; can be sampling variance.)")
-    passed = sum(1 for r in results if r.passed)
-    typer.echo(f"Passed {passed}/{n}")
+    _run_batch_verification(n, source, sizes, base, seed, confidence)
 
 
 @simulator_app.command("run")
@@ -196,6 +214,70 @@ def verifier_run_cmd(
     if not result.passed:
         _echo_verification_details(result)
         typer.echo("  (One or more metrics fell outside the 95% CI at some n; can be sampling variance.)")
+
+
+@verifier_app.command("report")
+def verifier_report_cmd(
+    experiment_id: str = typer.Argument(
+        ...,
+        help="Experiment id; uses existing samples if enough exist, else runs simulator",
+    ),
+    out_dir: Path = typer.Option(
+        None,
+        "--out-dir",
+        "-o",
+        path_type=Path,
+        help="Directory for figures (default: base_dir/experiment/<id>/verification_report)",
+    ),
+    base_dir: Path = typer.Option(None, "--base-dir", "-d", path_type=Path),
+    seed: int = typer.Option(42, "--seed", "-s", help="Random seed (used when running simulator)"),
+    total_samples: int = typer.Option(10_000, "--total-samples", help="Total samples (reuse up to this many from disk, or generate this many)"),
+    batch_size: int = typer.Option(100, "--batch-size", help="Batch size for distribution histograms"),
+    override: bool = typer.Option(False, "--override", help="Delete existing samples and re-run simulator before plotting"),
+) -> None:
+    """Regenerate batch distribution plot from existing data by default; use --override to re-run simulator."""
+    import time
+    base = base_dir or DEFAULT_EXPERIMENTS_DIR
+    out = out_dir or base / "experiment" / experiment_id / "verification_report"
+    out.mkdir(parents=True, exist_ok=True)
+    cache_path = out / "batch_data.json"
+    if override:
+        typer.echo("Override: deleting existing samples and re-running simulator...")
+    t0 = time.perf_counter()
+    batch_data = run_verification_batch_data(
+        experiment_id,
+        total_samples=total_samples,
+        batch_size=batch_size,
+        base_dir=base,
+        seed=seed,
+        override=override,
+        cache_path=cache_path,
+    )
+    typer.echo(f"[verifier] Batch data ready in {time.perf_counter() - t0:.2f}s total")
+    t1 = time.perf_counter()
+    batch_figs = figures_batch_distributions(batch_data, out, dpi=150)
+    typer.echo(f"[verifier] Rendered figure in {time.perf_counter() - t1:.2f}s")
+    for p in batch_figs:
+        typer.echo(f"Figure: {p}")
+
+
+@verifier_app.command("batch")
+def verifier_batch_cmd(
+    n: int = typer.Option(1, "--n", "-n", help="Number of verification experiments (verifier_1, verifier_2, ...)"),
+    source: str = typer.Option("dummy", "--experiment", "-e", help="Source experiment to copy (persona, goals)"),
+    sample_sizes: str = typer.Option(
+        "200,500,1000",
+        "--sample-sizes",
+        help="Comma-separated sample sizes; one run per experiment with max(sizes) samples, then subsample",
+    ),
+    base_dir: Path = typer.Option(None, "--base-dir", "-d", path_type=Path),
+    seed: int = typer.Option(42, "--seed", "-s", help="Base random seed (seed+i per verifier_i)"),
+    confidence: float = typer.Option(0.95, "--confidence", help="Confidence level for intervals"),
+) -> None:
+    """Run N verification experiments (verifier_1 .. verifier_N), print pass/fail per experiment and Passed X/N."""
+    base = base_dir or DEFAULT_EXPERIMENTS_DIR
+    sizes = [int(x.strip()) for x in sample_sizes.split(",") if x.strip()] or [200, 500, 1000]
+    _run_batch_verification(n, source, sizes, base, seed, confidence)
 
 
 @scoring_app.command("experiment")

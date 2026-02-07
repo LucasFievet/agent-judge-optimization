@@ -2,11 +2,12 @@
 Publication-ready tables and figures from verification results.
 """
 
+import math
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from expforge.verifier.run import VerificationResult
+    from expforge.verifier.run import VerificationResult, BatchReportData
 
 _METRIC_LABELS = {
     "mean_length": r"$\mathbb{E}[L]$",
@@ -159,74 +160,78 @@ def figures(
     dpi: int = 150,
 ) -> list[Path]:
     """
-    Save publication figures: trajectory length, proportions, correlation vs n.
-    Returns list of saved paths. Requires matplotlib.
+    No-op: vs-n plots were removed. Use figures_batch_distributions for batch distribution plots.
+    Returns empty list for backward compatibility.
+    """
+    return []
+
+
+def figures_batch_distributions(
+    batch_data: "BatchReportData",
+    out_dir: Path | str,
+    *,
+    dpi: int = 150,
+) -> list[Path]:
+    """
+    Plot distributions of per-batch statistics (from one large run) with
+    theoretical sampling distributions overlaid. One 2×3 figure: mean length,
+    four proportions, correlation. One legend at top. Saves batch_distributions.pdf.
     """
     try:
         import matplotlib.pyplot as plt
+        import matplotlib.patches as mpatches
+        import matplotlib.lines as mlines
         import matplotlib
+        import numpy as np
+        from scipy import stats as scipy_stats
         matplotlib.use("Agg")
     except ImportError:
         return []
 
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    saved = []
-    ns = result.sample_sizes
-    theory = result.theory
+    theory = batch_data.theory
+    b = batch_data.batch_size
+    var_length = max(0.0, theory.expected_length_sq - theory.expected_length ** 2)
+    std_length = math.sqrt(var_length / b) if b else 0.0
 
-    # 1) Mean trajectory length vs n
-    emp_lengths = [result.empirical_by_n[n]["mean_length"] for n in ns]
-    fig, ax = plt.subplots(figsize=(5, 3.5))
-    ax.axhline(theory.expected_length, color="C0", linestyle="--", label="Theory")
-    ax.plot(ns, emp_lengths, "o-", color="C1", label="Empirical")
-    ax.set_xlabel("Sample size $n$")
-    ax.set_ylabel(r"$\mathbb{E}[L]$")
-    ax.legend()
-    ax.set_title("Mean trajectory length")
-    fig.tight_layout()
-    p = out_dir / "mean_length_vs_n.pdf"
-    fig.savefig(p, dpi=dpi, bbox_inches="tight")
-    plt.close(fig)
-    saved.append(p)
-
-    # 2) Proportions (p_finished, p_abandoned, p_publish, p_subscribe) vs n
-    metrics = ["p_finished", "p_abandoned", "p_publish", "p_subscribe"]
-    theory_vals = [
-        theory.p_finished,
-        theory.p_abandoned,
-        theory.p_publish,
-        theory.p_subscribe,
+    panels = [
+        ("batch_means_length", theory.expected_length, std_length, r"$\mathbb{E}[L]$ (batch mean)", True),
+        ("batch_p_finished", theory.p_finished, math.sqrt(theory.p_finished * (1 - theory.p_finished) / b) if b else 0, r"$P(\text{finished})$", True),
+        ("batch_p_abandoned", theory.p_abandoned, math.sqrt(theory.p_abandoned * (1 - theory.p_abandoned) / b) if b else 0, r"$P(\text{abandoned})$", True),
+        ("batch_p_publish", theory.p_publish, math.sqrt(theory.p_publish * (1 - theory.p_publish) / b) if b else 0, r"$P(\text{publish})$", True),
+        ("batch_p_subscribe", theory.p_subscribe, math.sqrt(theory.p_subscribe * (1 - theory.p_subscribe) / b) if b else 0, r"$P(\text{subscribe})$", True),
+        ("batch_correlations", theory.correlation_publish_subscribe, None, r"$\rho(\text{pub},\text{sub})$", False),
     ]
-    fig, ax = plt.subplots(figsize=(5, 3.5))
-    for m, tv in zip(metrics, theory_vals):
-        ax.axhline(tv, linestyle="--", alpha=0.7)
-    emp_vals = {m: [result.empirical_by_n[n][m] for n in ns] for m in metrics}
-    for i, m in enumerate(metrics):
-        ax.plot(ns, emp_vals[m], "o-", label=_METRIC_LABELS.get(m, m))
-    ax.set_xlabel("Sample size $n$")
-    ax.set_ylabel("Probability")
-    ax.legend()
-    ax.set_title("Outcome and hitting probabilities")
-    fig.tight_layout()
-    p = out_dir / "proportions_vs_n.pdf"
+
+    fig, axes = plt.subplots(2, 3, figsize=(9, 6))
+    axes_flat = axes.flatten()
+
+    for idx, (key, mu, std, ylabel, overlay_normal) in enumerate(panels):
+        ax = axes_flat[idx]
+        values = getattr(batch_data, key)
+        if not values:
+            ax.set_title(ylabel)
+            continue
+        ax.hist(values, bins=min(25, max(10, len(values) // 4)), density=True, alpha=0.7, color="C1", edgecolor="black", linewidth=0.3)
+        ax.axvline(mu, color="C0", linestyle="--", linewidth=2)
+        if overlay_normal and std is not None and std > 0:
+            xmin, xmax = ax.get_xlim()
+            xx = np.linspace(xmin, xmax, 200)
+            ax.plot(xx, scipy_stats.norm.pdf(xx, mu, std), color="C0", linestyle="-", linewidth=1.5)
+        ax.set_ylabel("Density")
+        ax.set_xlabel(ylabel)
+
+    # Title on top, legend below title, then plots; compact top margin
+    fig.suptitle(f"Batch statistics (batch size={b}, {batch_data.total_samples} samples)", fontsize=11, y=0.98)
+    legend_handles = [
+        mpatches.Patch(facecolor="C1", alpha=0.7, edgecolor="black", label="Empirical"),
+        mlines.Line2D([], [], color="C0", linestyle="--", linewidth=2, label="Theoretical mean"),
+        mlines.Line2D([], [], color="C0", linestyle="-", linewidth=1.5, label="Normal approx. (mean & variance)"),
+    ]
+    fig.legend(handles=legend_handles, loc="upper center", ncol=3, bbox_to_anchor=(0.5, 0.94), fontsize=9)
+    fig.tight_layout(rect=[0, 0, 1, 0.92])
+    p = out_dir / "batch_distributions.pdf"
     fig.savefig(p, dpi=dpi, bbox_inches="tight")
     plt.close(fig)
-    saved.append(p)
-
-    # 3) Correlation vs n
-    rho_emp = [result.correlation_by_n.get(n, 0.0) for n in ns]
-    fig, ax = plt.subplots(figsize=(5, 3.5))
-    ax.axhline(theory.correlation_publish_subscribe, color="C0", linestyle="--", label="Theory")
-    ax.plot(ns, rho_emp, "o-", color="C1", label="Empirical")
-    ax.set_xlabel("Sample size $n$")
-    ax.set_ylabel(r"$\rho(\text{publish}, \text{subscribe})$")
-    ax.legend()
-    ax.set_title("Correlation")
-    fig.tight_layout()
-    p = out_dir / "correlation_vs_n.pdf"
-    fig.savefig(p, dpi=dpi, bbox_inches="tight")
-    plt.close(fig)
-    saved.append(p)
-
-    return saved
+    return [p]

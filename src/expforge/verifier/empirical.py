@@ -65,3 +65,50 @@ def empirical_correlation(trajectory_paths: list[Path]) -> float:
     if var_pub * var_sub <= 0:
         return 0.0
     return float(max(-1.0, min(1.0, cov / (var_pub * var_sub) ** 0.5)))
+
+
+def batch_empirical_stats(
+    trajectory_paths: list[Path],
+    batch_size: int,
+) -> dict[str, list[float]]:
+    """
+    Split paths into consecutive batches of batch_size; compute per-batch statistics.
+    Drops remainder if len(paths) % batch_size != 0.
+    Returns dict with: batch_means_length, batch_p_finished, batch_p_abandoned,
+    batch_p_publish, batch_p_subscribe, batch_correlations (each a list of length num_batches).
+    """
+    n = len(trajectory_paths)
+    num_batches = n // batch_size
+    if num_batches == 0:
+        return {
+            "batch_means_length": [],
+            "batch_p_finished": [],
+            "batch_p_abandoned": [],
+            "batch_p_publish": [],
+            "batch_p_subscribe": [],
+            "batch_correlations": [],
+        }
+    batch_means_length: list[float] = []
+    batch_p_finished: list[float] = []
+    batch_p_abandoned: list[float] = []
+    batch_p_publish: list[float] = []
+    batch_p_subscribe: list[float] = []
+    batch_correlations: list[float] = []
+    for i in range(num_batches):
+        start = i * batch_size
+        chunk = trajectory_paths[start : start + batch_size]
+        emp = empirical_from_trajectories(chunk)
+        batch_means_length.append(emp["mean_length"])
+        batch_p_finished.append(emp["p_finished"])
+        batch_p_abandoned.append(emp["p_abandoned"])
+        batch_p_publish.append(emp["p_publish"])
+        batch_p_subscribe.append(emp["p_subscribe"])
+        batch_correlations.append(empirical_correlation(chunk))
+    return {
+        "batch_means_length": batch_means_length,
+        "batch_p_finished": batch_p_finished,
+        "batch_p_abandoned": batch_p_abandoned,
+        "batch_p_publish": batch_p_publish,
+        "batch_p_subscribe": batch_p_subscribe,
+        "batch_correlations": batch_correlations,
+    }

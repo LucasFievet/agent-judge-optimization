@@ -1,5 +1,6 @@
 """Load/save experiment config and copy experiments."""
 
+import re
 import shutil
 from pathlib import Path
 
@@ -58,3 +59,24 @@ def load_experiment(base_dir: Path, experiment_id: str) -> tuple[PersonaSet, Goa
     persona_set = load_persona_set(exp_dir / "persona.yaml")
     goal_set = load_goal_set(exp_dir / "goals.yaml")
     return persona_set, goal_set
+
+
+def load_existing_sample_paths(base_dir: Path, experiment_id: str) -> list[Path]:
+    """Return sorted list of sample_*.yaml paths (by sample number). Empty if no samples dir or no files."""
+    exp_dir = experiment_dir(base_dir, experiment_id)
+    samples_dir = exp_dir / "samples"
+    if not samples_dir.is_dir():
+        return []
+    paths = list(samples_dir.glob("sample_*.yaml"))
+    paths.sort(key=lambda p: int(re.search(r"\d+", p.stem).group(0)) if re.search(r"\d+", p.stem) else 0)
+    return paths
+
+
+def delete_sample_files(base_dir: Path, experiment_id: str) -> None:
+    """Remove all sample_*.yaml in the experiment's samples dir (for --override)."""
+    exp_dir = experiment_dir(base_dir, experiment_id)
+    samples_dir = exp_dir / "samples"
+    if not samples_dir.is_dir():
+        return
+    for p in samples_dir.glob("sample_*.yaml"):
+        p.unlink()
