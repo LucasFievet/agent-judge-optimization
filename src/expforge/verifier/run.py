@@ -9,7 +9,7 @@ from pathlib import Path
 from expforge.theory import TheoreticalValues
 from expforge.simulator.experiment_simulator import run_simulator
 
-from expforge.verifier.io import load_experiment, copy_experiment, experiment_dir, ensure_experiment_exists
+from expforge.verifier.io import load_experiment, copy_experiment, experiment_dir, ensure_experiment_exists, DEFAULT_EXPERIMENTS_DIR
 from expforge.verifier.empirical import empirical_from_trajectories, empirical_correlation
 from expforge.verifier.checks import append_checks, z_for_confidence
 
@@ -45,7 +45,7 @@ def run_verification(
     missing config (persona/goals via effective_seed(seed, experiment_id)), and to seed
     the simulator RNG for trajectory sampling (and subsampling when max_samples is set).
     """
-    base_dir = Path(base_dir or Path(__file__).resolve().parent.parent / "simulator")
+    base_dir = Path(base_dir or DEFAULT_EXPERIMENTS_DIR)
     sample_sizes = sample_sizes or [200, 500, 1000]
 
     ensure_experiment_exists(base_dir, experiment_id, seed=seed)
@@ -118,7 +118,7 @@ def run_n_verifications(
     confidence: float = 0.95,
 ) -> list[VerificationResult]:
     """Create verifier_1..verifier_N, run simulator once per experiment, verify by subsampling."""
-    base_dir = Path(base_dir or Path(__file__).resolve().parent.parent / "simulator")
+    base_dir = Path(base_dir or DEFAULT_EXPERIMENTS_DIR)
     sample_sizes = sample_sizes or [200, 500, 1000]
     max_samples = max(sample_sizes)
     results = []

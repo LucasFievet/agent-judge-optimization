@@ -74,7 +74,7 @@ def deploy_checkpoint(
         # Upload to GCS
         timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
         if model_name is None:
-            model_name = f"triple-mnist-model-{checkpoint_name}"
+            model_name = f"expforge-model-{checkpoint_name}"
         
         gcs_model_path = f"{config.model_dir}/{model_name}/{timestamp}"
         

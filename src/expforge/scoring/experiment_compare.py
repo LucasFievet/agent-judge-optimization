@@ -5,6 +5,8 @@ from typing import Any
 
 import yaml
 
+from expforge.verifier.io import DEFAULT_EXPERIMENTS_DIR
+
 
 def load_metrics(metrics_path: Path) -> dict[str, Any]:
     """Load metrics.yaml."""
@@ -25,7 +27,7 @@ def run_experiment_compare(
     Returns dict with point difference (B - A), confidence interval for the difference,
     and P(metric_B > metric_A) or similar.
     """
-    base_dir = Path(base_dir or Path(__file__).resolve().parent)
+    base_dir = Path(base_dir or DEFAULT_EXPERIMENTS_DIR)
     path_a = base_dir / "experiment" / experiment_id_a / "metrics.yaml"
     path_b = base_dir / "experiment" / experiment_id_b / "metrics.yaml"
 

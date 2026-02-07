@@ -24,7 +24,7 @@ def create_run(
     Returns:
         ExperimentRun object
     """
-    run_name = f"triple-mnist-run-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    run_name = f"expforge-run-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
     
     run = ExperimentRun.create(
         run_name=run_name,

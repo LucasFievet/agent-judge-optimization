@@ -123,7 +123,7 @@ def save_checkpoint(
         checkpoint_name = f"checkpoint-{timestamp}"
     
     # Save model to temp location
-    base_dir = Path("/tmp/triple-mnist/checkpoints")
+    base_dir = Path("/tmp/expforge/checkpoints")
     base_dir.mkdir(parents=True, exist_ok=True)
     temp_dir = base_dir / checkpoint_name
     temp_dir.mkdir(parents=True, exist_ok=True)
@@ -173,7 +173,7 @@ def save_checkpoint(
 def load_checkpoint(checkpoint_name: str) -> Tuple[tf.keras.Model, int]:
     """Load a checkpoint from GCS."""
     # Download from GCS to temp location
-    base_dir = Path("/tmp/triple-mnist/checkpoints")
+    base_dir = Path("/tmp/expforge/checkpoints")
     base_dir.mkdir(parents=True, exist_ok=True)
     temp_dir = base_dir / checkpoint_name
     temp_dir.mkdir(parents=True, exist_ok=True)

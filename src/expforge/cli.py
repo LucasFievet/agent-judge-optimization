@@ -8,7 +8,7 @@ import typer
 
 from expforge.simulator import run_simulator
 from expforge.scoring import run_experiment_scoring, run_experiment_compare
-from expforge.verifier import run_verification, run_n_verifications, VerificationResult
+from expforge.verifier import run_verification, run_n_verifications, VerificationResult, DEFAULT_EXPERIMENTS_DIR
 
 app = typer.Typer(help="Experiment Forge: simulator and scoring for nested Markov experiments.")
 
@@ -73,6 +73,9 @@ app.add_typer(scoring_app, name="scoring")
 verifier_app = typer.Typer(help="Verify theory vs simulator (fast mode).")
 app.add_typer(verifier_app, name="verifier")
 
+vertex_app = typer.Typer(help="Vertex AI: config, resources, and custom training jobs.")
+app.add_typer(vertex_app, name="vertex")
+
 
 @app.command("verify")
 def verify_cmd(
@@ -91,7 +94,7 @@ def verify_cmd(
     Generate N verification experiments (verifier_1 .. verifier_N), run simulator once per
     experiment with max(sample_sizes) samples, verify theory at each sample size by subsampling.
     """
-    base = base_dir or Path(__file__).resolve().parent / "simulator"
+    base = base_dir or DEFAULT_EXPERIMENTS_DIR
     sizes = [int(x.strip()) for x in sample_sizes.split(",") if x.strip()] or [200, 500, 1000]
     results = run_n_verifications(
         n_experiments=n,
@@ -119,7 +122,7 @@ def run_simulator_cmd(
         "--base-dir",
         "-d",
         path_type=Path,
-        help="Base directory (default: simulator package data dir)",
+        help="Base directory for experiment outputs (default: ./experiments)",
     ),
     seed: int = typer.Option(None, "--seed", "-s", help="Random seed"),
     no_reuse_config: bool = typer.Option(False, "--no-reuse-config", help="Regenerate persona and goal config"),
@@ -129,7 +132,7 @@ def run_simulator_cmd(
     Run simulator: (re)use config, draw random persona per sample, generate trajectories.
     Writes to simulator/experiment/<id>/: persona.yaml, goals.yaml, transitions.yaml, samples/.
     """
-    base = base_dir or Path(__file__).resolve().parent / "simulator"
+    base = base_dir or DEFAULT_EXPERIMENTS_DIR
     persona_set, goal_set, paths = run_simulator(
         experiment_id,
         sample,
@@ -166,7 +169,7 @@ def verifier_run_cmd(
     confidence: float = typer.Option(0.95, "--confidence", help="Confidence level for intervals"),
 ) -> None:
     """Run theory vs simulator verification (fast mode, no LLM). By default creates a new timestamped experiment with a random seed; use --seed to re-run a specific case."""
-    base = base_dir or Path(__file__).resolve().parent / "simulator"
+    base = base_dir or DEFAULT_EXPERIMENTS_DIR
     if experiment_id is None:
         experiment_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_verifier"
     if seed is None:
@@ -204,7 +207,7 @@ def score_experiment_cmd(
     confidence: float = typer.Option(0.95, "--confidence", help="Confidence level for intervals"),
 ) -> None:
     """Score every sample; write experiment/{id}/metrics.yaml (same base_dir as simulator)."""
-    base = base_dir or Path(__file__).resolve().parent / "simulator"
+    base = base_dir or DEFAULT_EXPERIMENTS_DIR
     path = run_experiment_scoring(
         experiment_id,
         base_dir=base,
@@ -224,7 +227,7 @@ def compare_experiments_cmd(
     confidence: float = typer.Option(0.95, "--confidence"),
 ) -> None:
     """Compare two experiments; output confidence interval on B - A and conclusion."""
-    base = base_dir or Path(__file__).resolve().parent / "simulator"
+    base = base_dir or DEFAULT_EXPERIMENTS_DIR
     result = run_experiment_compare(
         experiment_a,
         experiment_b,
@@ -241,6 +244,112 @@ def compare_experiments_cmd(
     typer.echo(f"  Difference (B - A): {result['difference_b_minus_a']:.4f}")
     typer.echo(f"  CI: {result['confidence_interval_difference']}")
     typer.echo(f"  Conclusion: {result['conclusion']}")
+
+
+# ---- Vertex AI commands ----
+
+@vertex_app.command("config")
+def vertex_config_cmd(
+    show: bool = typer.Option(False, "--show", "-s", help="Show current configuration"),
+    project_id: str | None = typer.Option(None, "--project-id", help="GCP project ID"),
+    location: str | None = typer.Option(None, "--location", help="GCP region (e.g. us-central1)"),
+    bucket_name: str | None = typer.Option(None, "--bucket-name", help="GCS bucket name"),
+    experiment_name: str | None = typer.Option(None, "--experiment-name", help="Vertex AI experiment name"),
+    tensorboard_name: str | None = typer.Option(None, "--tensorboard-name", help="TensorBoard resource name"),
+    machine_type: str | None = typer.Option(None, "--machine-type", help="Default machine type for training jobs"),
+) -> None:
+    """View or update Vertex AI configuration (stored in config.json)."""
+    from expforge.config import get_config_path, load_config, save_config, ExpforgeConfig
+    path = get_config_path()
+    if show:
+        try:
+            config = load_config()
+            typer.echo(__import__("json").dumps(config.to_dict(), indent=2))
+        except FileNotFoundError:
+            typer.echo(f"No config at {path}. Create config.json from config.json.example or set options.", err=True)
+            raise typer.Exit(1)
+        return
+    updates = {k: v for k, v in [
+        ("project_id", project_id),
+        ("location", location),
+        ("bucket_name", bucket_name),
+        ("experiment_name", experiment_name),
+        ("tensorboard_name", tensorboard_name),
+        ("machine_type", machine_type),
+    ] if v is not None}
+    if not updates:
+        typer.echo("Use --show to view config, or pass --project-id, --location, etc. to update.")
+        return
+    try:
+        config = load_config()
+        d = config.to_dict()
+    except FileNotFoundError:
+        d = {
+            "project_id": "your-project-id",
+            "location": "us-central1",
+            "bucket_name": "your-bucket",
+            "experiment_name": "expforge-experiments",
+            "tensorboard_name": "expforge-tensorboard",
+        }
+    for k, v in updates.items():
+        d[k] = v
+    config = ExpforgeConfig.from_dict(d)
+    saved = save_config(config)
+    typer.echo(f"Saved configuration to {saved}")
+
+
+@vertex_app.command("check-resources")
+def vertex_check_resources_cmd(
+    fix: bool = typer.Option(False, "--fix", "-f", help="Create missing bucket and TensorBoard"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed errors"),
+) -> None:
+    """Check Vertex AI resources (credentials, bucket, experiment, TensorBoard)."""
+    from expforge.vertex.manager import VertexManager
+    manager = VertexManager()
+    result = manager.check()
+    typer.echo(result["output"])
+    if fix and not result["results"]["all_passed"]:
+        typer.echo("")
+        create_result = manager.create()
+        typer.echo(create_result["output"])
+    raise typer.Exit(0 if result["results"]["all_passed"] else 1)
+
+
+@vertex_app.command("train-job")
+def vertex_train_job_cmd(
+    epochs: int = typer.Option(10, "--epochs", help="Number of training epochs"),
+    batch_size: int = typer.Option(32, "--batch-size", help="Batch size"),
+    learning_rate: float = typer.Option(0.001, "--learning-rate", help="Learning rate"),
+    sync: bool = typer.Option(False, "--sync", help="Wait for job completion"),
+) -> None:
+    """Submit a Custom Training Job to Vertex AI (placeholder training script)."""
+    from expforge.training.custom_job import CustomTrainingJobManager
+    manager = CustomTrainingJobManager()
+    manager.create_and_submit_job(
+        epochs=epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        sync=sync,
+    )
+    typer.echo("Job submitted. Use Vertex AI console or logs to monitor.")
+
+
+@app.command("check-account")
+def check_account_cmd() -> None:
+    """Show which Google account is authenticated (gcloud)."""
+    import subprocess
+    try:
+        r = subprocess.run(
+            ["gcloud", "auth", "list", "--filter=status:ACTIVE", "--format=value(account)"],
+            capture_output=True,
+            text=True,
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            typer.echo(f"Active account: {r.stdout.strip()}")
+        else:
+            typer.echo("No active gcloud account. Run: gcloud auth login")
+    except FileNotFoundError:
+        typer.echo("gcloud not found. Install Google Cloud SDK.")
 
 
 def main() -> None:

@@ -1,30 +1,36 @@
 """Test verifier across different experiments and configurations."""
 
+from pathlib import Path
+
 from expforge.verifier import run_verification
 from expforge.verifier.multi_seed import run_verification_multi_seed
 import logging
 
-# Suppress logs for cleaner test output
+# Base dir for experiment configs (repo layout or ./experiments)
+_TESTS_BASE = Path(__file__).resolve().parent.parent / "src" / "expforge" / "simulator"
+if not (_TESTS_BASE / "experiment" / "dummy" / "persona.yaml").exists():
+    _TESTS_BASE = Path(__file__).resolve().parent.parent / "experiments"
+
 logging.basicConfig(level=logging.ERROR)
 
 
 def test_dummy_experiment():
     """Test verification on dummy experiment."""
-    result = run_verification('dummy', sample_sizes=[200, 500, 1000], seed=123)
+    result = run_verification('dummy', sample_sizes=[200, 500, 1000], seed=123, base_dir=_TESTS_BASE)
     assert result.passed, f"Dummy experiment should pass with seed=123"
     print("✓ dummy experiment passed")
 
 
 def test_test_experiment():
     """Test verification on test experiment."""
-    result = run_verification('test', sample_sizes=[200, 500, 1000], seed=123)
+    result = run_verification('test', sample_sizes=[200, 500, 1000], seed=123, base_dir=_TESTS_BASE)
     assert result.passed, f"Test experiment should pass with seed=123"
     print("✓ test experiment passed")
 
 
 def test_verifier_1_experiment():
     """Test verification on verifier_1 experiment."""
-    result = run_verification('verifier_1', sample_sizes=[200, 500, 1000], seed=123)
+    result = run_verification('verifier_1', sample_sizes=[200, 500, 1000], seed=123, base_dir=_TESTS_BASE)
     assert result.passed, f"Verifier_1 experiment should pass with seed=123"
     print("✓ verifier_1 experiment passed")
 
@@ -36,7 +42,7 @@ def test_multiple_seeds():
     results = []
 
     for seed in seeds:
-        result = run_verification('dummy', sample_sizes=[200, 500, 1000], seed=seed)
+        result = run_verification('dummy', sample_sizes=[200, 500, 1000], seed=seed, base_dir=_TESTS_BASE)
         results.append(result.passed)
 
     pass_rate = sum(results) / len(results)
@@ -49,7 +55,7 @@ def test_different_sample_sizes():
     """Test verification with various sample sizes."""
     # Test with different n values
     for n in [100, 200, 500, 1000, 2000]:
-        result = run_verification('dummy', sample_sizes=[n], seed=123)
+        result = run_verification('dummy', sample_sizes=[n], seed=123, base_dir=_TESTS_BASE)
         # At least some sample sizes should pass
         if not result.passed:
             print(f"  n={n}: FAIL (expected for some n due to variance)")
@@ -65,9 +71,8 @@ def test_outcome_weights_consistency():
     from expforge.persona import load_persona_set
     from expforge.goal import load_goal_set
     from expforge.trajectory.transition_matrix import build_transition_matrix, DEFAULT_OUTCOME_WEIGHTS
-    from pathlib import Path
 
-    base = Path('src/expforge/simulator/experiment/dummy')
+    base = _TESTS_BASE / "experiment" / "dummy"
     personas = load_persona_set(base / 'persona.yaml')
     goals = load_goal_set(base / 'goals.yaml')
 
@@ -98,7 +103,8 @@ def test_multi_seed_verification():
             exp,
             seeds,
             sample_sizes=[1000],
-            pass_rate=0.50  # Require 50% of seeds to pass
+            pass_rate=0.50,  # Require 50% of seeds to pass
+            base_dir=_TESTS_BASE,
         )
         passed = sum(1 for r in results if r.passed)
         rate = passed / len(results)

@@ -5,6 +5,7 @@ from typing import Any
 
 import yaml
 
+from expforge.verifier.io import DEFAULT_EXPERIMENTS_DIR
 from expforge.scoring.persona_clustering import assign_persona_hard, assign_persona_soft
 from expforge.scoring.goal_scoring import score_goal_phases_for_trajectory
 from expforge.scoring.goal_clustering import segment_trajectory, cluster_goal_segments
@@ -42,7 +43,7 @@ def run_experiment_scoring(
     Writes experiment/{experiment_id}/metrics.yaml.
     Use same base_dir as simulator so one experiment dir has persona, goals, transitions, samples, metrics.
     """
-    base_dir = Path(base_dir or Path(__file__).resolve().parent)
+    base_dir = Path(base_dir or DEFAULT_EXPERIMENTS_DIR)
     exp_dir = base_dir / "experiment" / experiment_id
     samples_dir = exp_dir / "samples"
     exp_dir.mkdir(parents=True, exist_ok=True)

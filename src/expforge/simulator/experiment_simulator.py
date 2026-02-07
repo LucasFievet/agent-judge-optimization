@@ -15,11 +15,7 @@ from expforge.trajectory import TrajectoryGenerator, save_trajectory
 from expforge.trajectory.transition_matrix import build_transition_matrix, write_transition_matrix
 from expforge.simulator.persona_simulator import generate_sample_goal, generate_user_message_and_next_action
 from expforge.simulator.agent_simulator import generate_agent_message
-
-
-def experiment_dir(base_dir: Path, experiment_id: str) -> Path:
-    """Path to simulator/experiment/<name>/ (persona.yaml, goals.yaml, transitions.yaml, samples/)."""
-    return base_dir / "experiment" / experiment_id
+from expforge.verifier.io import experiment_dir, DEFAULT_EXPERIMENTS_DIR
 
 
 def run_simulator(
@@ -41,7 +37,7 @@ def run_simulator(
     If use_llm=False (fast mode), user and agent messages use fallbacks and the transition
     sampler chooses the next action; no LLM calls. Use for verification against theory.
     """
-    base_dir = Path(base_dir or Path(__file__).resolve().parent)
+    base_dir = Path(base_dir or DEFAULT_EXPERIMENTS_DIR)
     exp_dir = experiment_dir(base_dir, experiment_id)
     persona_path = exp_dir / "persona.yaml"
     goal_path = exp_dir / "goals.yaml"

@@ -6,6 +6,9 @@ from pathlib import Path
 from expforge.persona import PersonaSet, load_persona_set
 from expforge.goal import GoalSet, load_goal_set
 
+# Default base directory for experiment outputs (outside src tree)
+DEFAULT_EXPERIMENTS_DIR = Path.cwd() / "experiments"
+
 
 def _bootstrap_experiment(base_dir: Path, experiment_id: str, *, seed: int | None = None) -> None:
     """Create persona.yaml, goals.yaml, transitions.yaml by running simulator with 0 samples."""

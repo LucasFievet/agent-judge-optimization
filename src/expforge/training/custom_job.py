@@ -169,11 +169,12 @@ class CustomTrainingJobManager:
         
         # Use CustomPythonPackageTrainingJob which is designed for packageUris + pythonModule
         # This ensures the full expforge package is available and imports work correctly
+        container = self.config.container_uri or self.config.serving_container_image_uri
         job = aiplatform.CustomPythonPackageTrainingJob(
             display_name=display_name,
             python_package_gcs_uri=package_uri,
             python_module_name="expforge.training.train",
-            container_uri=self.config.serving_container_image_uri,
+            container_uri=container,
             project=self.config.project_id,
             location=self.config.location,
             staging_bucket=self.config.bucket_name,

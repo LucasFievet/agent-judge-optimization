@@ -109,6 +109,16 @@ def load_config() -> ExpforgeConfig:
     return ExpforgeConfig.load(config_path)
 
 
+def save_config(config: ExpforgeConfig, path: Optional[Path] = None) -> Path:
+    """Save configuration to JSON. Uses get_config_path() if path is None."""
+    out = path or get_config_path()
+    out = Path(out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with open(out, "w") as f:
+        json.dump(config.to_dict(), f, indent=2)
+    return out
+
+
 def main():
     """CLI entry point for config module."""
     import argparse

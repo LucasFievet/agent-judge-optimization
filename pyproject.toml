@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Lightweight experiment scaffolding for ML workflows"
 readme = "README.md"
 authors = [{name = "Your Name"}]
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 dependencies = [
     "typer[all]>=0.9",
     "pyyaml>=6.0",

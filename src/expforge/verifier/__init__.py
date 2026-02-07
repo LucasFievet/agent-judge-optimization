@@ -11,7 +11,7 @@ from expforge.verifier.run import (
     run_n_verifications,
     VerificationResult,
 )
-from expforge.verifier.io import copy_experiment, load_experiment, experiment_dir
+from expforge.verifier.io import copy_experiment, load_experiment, experiment_dir, DEFAULT_EXPERIMENTS_DIR
 from expforge.verifier.multi_seed import run_verification_multi_seed
 from expforge.verifier.report import (
     summary_table,
@@ -27,6 +27,7 @@ __all__ = [
     "copy_experiment",
     "load_experiment",
     "experiment_dir",
+    "DEFAULT_EXPERIMENTS_DIR",
     "run_verification_multi_seed",
     "summary_table",
     "pass_rate_table",

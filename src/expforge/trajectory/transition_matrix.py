@@ -118,14 +118,11 @@ def build_and_save_transition_matrix(
 ) -> Path:
     """
     Build transition matrix from persona set + goal set and save to
-    simulator/experiment/<experiment_id>/transitions.yaml.
-    base_dir defaults to the simulator package dir so the file lives with the experiment config.
+    base_dir/experiment/<experiment_id>/transitions.yaml.
     Returns the path to the written file.
     """
-    if base_dir is None:
-        # Default: simulator/experiment/<experiment_id>/transitions.yaml
-        base_dir = Path(__file__).resolve().parent.parent / "simulator"
-    base_dir = Path(base_dir)
+    from expforge.verifier.io import DEFAULT_EXPERIMENTS_DIR
+    base_dir = Path(base_dir or DEFAULT_EXPERIMENTS_DIR)
     out_dir = base_dir / "experiment" / experiment_id
     path = out_dir / "transitions.yaml"
     matrix = build_transition_matrix(persona_set, goal_set)

@@ -5,6 +5,7 @@ Multi-seed verification: run verification over several seeds and require a pass 
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from expforge.verifier.io import DEFAULT_EXPERIMENTS_DIR
 from expforge.verifier.run import run_verification, VerificationResult
 
 if TYPE_CHECKING:
@@ -25,7 +26,7 @@ def run_verification_multi_seed(
     Run verification for each seed. Return (list of VerificationResult, overall_pass).
     overall_pass is True iff at least pass_rate fraction of seeds passed (e.g. 0.95 => 95%).
     """
-    base_dir = Path(base_dir or Path(__file__).resolve().parent.parent / "simulator")
+    base_dir = Path(base_dir or DEFAULT_EXPERIMENTS_DIR)
     sample_sizes = sample_sizes or [200, 500, 1000]
     if max_samples is None:
         max_samples = max(sample_sizes)
