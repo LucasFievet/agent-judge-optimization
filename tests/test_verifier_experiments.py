@@ -6,10 +6,11 @@ from expforge.verifier import run_verification
 from expforge.verifier.multi_seed import run_verification_multi_seed
 import logging
 
-# Base dir for experiment configs (repo layout or ./experiments)
-_TESTS_BASE = Path(__file__).resolve().parent.parent / "src" / "expforge" / "simulator"
+# Base dir for experiment configs: tests/fixtures/experiments or ./experiments (never src/)
+_tests_root = Path(__file__).resolve().parent
+_TESTS_BASE = _tests_root / "fixtures" / "experiments"
 if not (_TESTS_BASE / "experiment" / "dummy" / "persona.yaml").exists():
-    _TESTS_BASE = Path(__file__).resolve().parent.parent / "experiments"
+    _TESTS_BASE = _tests_root.parent / "experiments"
 
 logging.basicConfig(level=logging.ERROR)
 

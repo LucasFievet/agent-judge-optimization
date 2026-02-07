@@ -21,14 +21,14 @@ pip install -e .
 **CLI** (from project root):
 
 ```bash
-# Simulator: run 5 trajectories for experiment "dummy" (writes to ./experiments/experiment/dummy/)
+# Simulator: run 5 trajectories for experiment "dummy" (writes to base_dir/experiment/dummy/)
 expforge simulator run dummy --sample 5
 
 # Without installing: use module runner
 PYTHONPATH=src python -m expforge.cli simulator run dummy --sample 5
 ```
 
-**Default experiment output**: `./experiments/` (or set `--base-dir` / `-d`). All commands that use experiments share this base directory.
+**Experiment output**: By default, results go to **`<project_root>/.data/experiment/<id>/`** (the `.data` folder at the project root; never under `src/`). Set `EXPFORGE_EXPERIMENTS_DIR` or use `--base-dir` / `-d` to override. All commands share the same base directory.
 
 ### Vertex AI (optional)
 
@@ -53,7 +53,7 @@ PYTHONPATH=src python -m expforge.cli simulator run dummy --sample 5
 ## Configuration
 
 - **Vertex AI**: `config.json` in project root (or `~/.expforge/config.json`). See `config.json.example`. Used for bucket, experiment name, TensorBoard, and training job defaults.
-- **Experiments**: All simulator/verifier/scoring outputs use a single base directory; default is `./experiments`. Use `--base-dir` / `-d` to override.
+- **Experiments**: All simulator/verifier/scoring outputs use a single base directory; default is `<project_root>/.data`. Override with `EXPFORGE_EXPERIMENTS_DIR` or `--base-dir` / `-d`.
 
 ## Project layout
 
@@ -61,7 +61,8 @@ PYTHONPATH=src python -m expforge.cli simulator run dummy --sample 5
 - `src/expforge/config.py` – Vertex config load/save; `config.json` path resolution.
 - `src/expforge/simulator/` – Experiment simulator (persona, goals, trajectories).
 - `src/expforge/theory/` – Markov chain theory (expected length, absorption, correlation).
-- `src/expforge/verifier/` – Theory vs simulator verification; experiment dir and default base path.
+- `src/expforge/paths.py` – Experiment base path (project root `.data` by default; `EXPFORGE_EXPERIMENTS_DIR` to override).
+- `src/expforge/verifier/` – Theory vs simulator verification; experiment load/copy.
 - `src/expforge/scoring/` – Experiment scoring and compare.
 - `src/expforge/persona/`, `goal/`, `trajectory/` – Persona and goal models; trajectory generation and transition matrix.
 - `src/expforge/vertex/` – Vertex AI (bucket, experiment, TensorBoard, run).
@@ -84,4 +85,4 @@ python tests/test_transitions.py
 python tests/test_theory_moments.py
 ```
 
-Verifier tests expect experiment configs (e.g. `dummy`, `test`, `verifier_1`) under `src/expforge/simulator/experiment/` or `./experiments/`. Generate them with e.g. `expforge simulator run dummy --sample 0 --no-reuse-config` if missing.
+Verifier tests look for experiment configs (e.g. `dummy`, `test`, `verifier_1`) under `tests/fixtures/experiments/` or `./experiments/`. Generate with e.g. `expforge simulator run dummy --sample 0 --no-reuse-config -d ./experiments` (use `-d` so outputs are in a known place for tests).

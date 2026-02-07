@@ -1,5 +1,8 @@
 # Testing and Verification
 
+**Fixture location**: Verifier tests look for experiment configs under `tests/fixtures/experiments/` (then `./experiments/`). Generate with:
+`expforge simulator run dummy --sample 0 --no-reuse-config -d tests/fixtures/experiments` (and similarly for `test`, `verifier_1`). Experiment data is never stored under `src/`.
+
 ## Unit Tests
 
 ### test_transitions.py

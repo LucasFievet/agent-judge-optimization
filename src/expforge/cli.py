@@ -122,7 +122,7 @@ def run_simulator_cmd(
         "--base-dir",
         "-d",
         path_type=Path,
-        help="Base directory for experiment outputs (default: ./experiments)",
+        help="Base directory for experiment outputs (default: <project_root>/.data or EXPFORGE_EXPERIMENTS_DIR)",
     ),
     seed: int = typer.Option(None, "--seed", "-s", help="Random seed"),
     no_reuse_config: bool = typer.Option(False, "--no-reuse-config", help="Regenerate persona and goal config"),
@@ -130,7 +130,7 @@ def run_simulator_cmd(
 ) -> None:
     """
     Run simulator: (re)use config, draw random persona per sample, generate trajectories.
-    Writes to simulator/experiment/<id>/: persona.yaml, goals.yaml, transitions.yaml, samples/.
+    Writes to base_dir/experiment/<id>/: persona.yaml, goals.yaml, transitions.yaml, samples/.
     """
     base = base_dir or DEFAULT_EXPERIMENTS_DIR
     persona_set, goal_set, paths = run_simulator(

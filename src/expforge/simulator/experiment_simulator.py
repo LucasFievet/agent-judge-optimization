@@ -15,7 +15,7 @@ from expforge.trajectory import TrajectoryGenerator, save_trajectory
 from expforge.trajectory.transition_matrix import build_transition_matrix, write_transition_matrix
 from expforge.simulator.persona_simulator import generate_sample_goal, generate_user_message_and_next_action
 from expforge.simulator.agent_simulator import generate_agent_message
-from expforge.verifier.io import experiment_dir, DEFAULT_EXPERIMENTS_DIR
+from expforge.paths import experiment_dir, DEFAULT_EXPERIMENTS_DIR
 
 
 def run_simulator(

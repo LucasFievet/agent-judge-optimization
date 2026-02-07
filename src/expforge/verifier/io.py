@@ -5,9 +5,15 @@ from pathlib import Path
 
 from expforge.persona import PersonaSet, load_persona_set
 from expforge.goal import GoalSet, load_goal_set
+from expforge.paths import get_experiments_base_dir, experiment_dir as _experiment_dir
 
-# Default base directory for experiment outputs (outside src tree)
-DEFAULT_EXPERIMENTS_DIR = Path.cwd() / "experiments"
+# Re-export for backward compatibility; default is <project_root>/.data (set EXPFORGE_EXPERIMENTS_DIR to override)
+DEFAULT_EXPERIMENTS_DIR = get_experiments_base_dir()
+
+
+def experiment_dir(base_dir: Path, experiment_id: str) -> Path:
+    """Path to experiment dir: base_dir/experiment/<experiment_id>/."""
+    return _experiment_dir(base_dir, experiment_id)
 
 
 def _bootstrap_experiment(base_dir: Path, experiment_id: str, *, seed: int | None = None) -> None:
@@ -28,10 +34,6 @@ def ensure_experiment_exists(base_dir: Path, experiment_id: str, *, seed: int | 
     exp_dir = experiment_dir(base_dir, experiment_id)
     if not (exp_dir / "persona.yaml").exists():
         _bootstrap_experiment(base_dir, experiment_id, seed=seed)
-
-
-def experiment_dir(base_dir: Path, experiment_id: str) -> Path:
-    return base_dir / "experiment" / experiment_id
 
 
 def copy_experiment(
