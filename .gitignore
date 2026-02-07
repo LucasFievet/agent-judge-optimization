@@ -24,6 +24,9 @@ google-cloud-sdk/
 python-aiplatform/
 google-cloud-cli*.tar.gz
 
+# Claude Code: ignore local overrides (keep .claude/settings.json, CLAUDE.md for team)
+.claude/*.local.*
+
 # IDE
 .vscode/
 .idea/

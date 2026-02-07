@@ -66,14 +66,18 @@ def generate_text(prompt: str, *, model: str = DEFAULT_MODEL, max_tokens: int = 
     """Return LLM-generated text; empty string on failure or missing API key."""
     out = ""
     try:
-        import google.generativeai as genai
+        from google import genai
+        from google.genai import types
         key = _api_key()
         if not key:
             _log_llm_call(prompt, "(skipped: no GEMINI_API_KEY / GOOGLE_API_KEY)", model)
             return ""
-        genai.configure(api_key=key)
-        m = genai.GenerativeModel(model)
-        r = m.generate_content(prompt, generation_config=genai.types.GenerationConfig(max_output_tokens=max_tokens))
+        client = genai.Client(api_key=key)
+        r = client.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=types.GenerateContentConfig(max_output_tokens=max_tokens),
+        )
         if r and r.text:
             out = r.text.strip()
     except Exception as e:

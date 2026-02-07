@@ -1,5 +1,6 @@
 """Generate a single trajectory from persona + goals."""
 
+import logging
 import random
 import uuid
 from typing import Callable
@@ -9,6 +10,8 @@ from expforge.goal import GoalSet
 from expforge.trajectory.states import TrajectoryState
 from expforge.trajectory.steps import TrajectoryStep, Trajectory
 from expforge.trajectory.transitions import TransitionSampler
+
+logger = logging.getLogger(__name__)
 
 # Optional: (persona, top_level, nested_state) -> user_message
 UserMessageFn = Callable[[PersonaSpec, str, str | None], str]
@@ -73,11 +76,12 @@ class TrajectoryGenerator:
         persona_turn_fn: PersonaTurnFn | None = None,
         user_message_fn: UserMessageFn | None = None,
         agent_message_fn: AgentMessageFn | None = None,
+        outcome_weights: dict[str, float] | None = None,
     ) -> None:
         self.goal_set = goal_set
         self.persona = persona
         self.max_steps = max_steps
-        self.sampler = TransitionSampler(goal_set, seed=seed)
+        self.sampler = TransitionSampler(goal_set, seed=seed, outcome_weights=outcome_weights)
         self.sample_goal_fn = sample_goal_fn
         self.persona_turn_fn = persona_turn_fn
         self.user_message_fn = user_message_fn
@@ -111,7 +115,7 @@ class TrajectoryGenerator:
             sample_goal = self.sample_goal_fn(self.goal_set, self.persona)
         conversation_so_far: list[tuple[str, str]] = []
 
-        for _ in range(self.max_steps):
+        for step_num in range(self.max_steps):
             nested_outcome = None
             if state.top_level not in ("start", "publish", "subscribe", "finished", "abandoned"):
                 nested_outcome = self.sampler.sample_nested(self.persona, state.top_level)
@@ -178,6 +182,7 @@ class TrajectoryGenerator:
                 break
 
         outcome = state.top_level if steps and steps[-1].terminal else None
+        logger.debug(f"Generated trajectory {trajectory_id}: {len(steps)} steps, outcome={outcome}")
         return Trajectory(
             trajectory_id=trajectory_id,
             persona_id=self.persona.id,

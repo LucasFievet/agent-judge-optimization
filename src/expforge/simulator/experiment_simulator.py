@@ -29,6 +29,7 @@ def run_simulator(
     base_dir: Path | str | None = None,
     seed: int | None = None,
     reuse_config: bool = True,
+    use_llm: bool = True,
 ) -> tuple[PersonaSet, GoalSet, list[Path]]:
     """
     Run the simulator for experiment `experiment_id` with `n_samples` trajectories.
@@ -36,6 +37,9 @@ def run_simulator(
     All outputs live under simulator/experiment/<experiment_id>/:
     - persona.yaml, goals.yaml, transitions.yaml; samples/sample_1.yaml, ...
     Reuses persona/goals if present and reuse_config=True.
+
+    If use_llm=False (fast mode), user and agent messages use fallbacks and the transition
+    sampler chooses the next action; no LLM calls. Use for verification against theory.
     """
     base_dir = Path(base_dir or Path(__file__).resolve().parent)
     exp_dir = experiment_dir(base_dir, experiment_id)
@@ -69,33 +73,45 @@ def run_simulator(
     weights = persona_set.get_weights()
     saved_paths: list[Path] = []
 
-    def sample_goal_fn(gs: GoalSet, p: PersonaSpec | None) -> str:
-        return generate_sample_goal(gs, p)
+    if use_llm:
+        def sample_goal_fn(gs: GoalSet, p: PersonaSpec | None) -> str:
+            return generate_sample_goal(gs, p)
 
-    def persona_turn_fn(
-        persona: PersonaSpec,
-        gs: GoalSet,
-        conversation: list[tuple[str, str]],
-        sample_goal: str,
-        top_level: str,
-        nested_state: str | None,
-        nested_outcome: str | None,
-        allowed_next: list[str],
-    ) -> tuple[str, str]:
-        return generate_user_message_and_next_action(
-            persona, gs, conversation, sample_goal,
-            top_level, nested_state, nested_outcome, allowed_next,
-        )
+        def persona_turn_fn(
+            persona: PersonaSpec,
+            gs: GoalSet,
+            conversation: list[tuple[str, str]],
+            sample_goal: str,
+            top_level: str,
+            nested_state: str | None,
+            nested_outcome: str | None,
+            allowed_next: list[str],
+        ) -> tuple[str, str]:
+            return generate_user_message_and_next_action(
+                persona, gs, conversation, sample_goal,
+                top_level, nested_state, nested_outcome, allowed_next,
+            )
 
-    def agent_message_fn(user_message: str, tools_used: list[str], nested_outcome: str | None, goal_name: str, goal_id: str = "") -> str:
-        return generate_agent_message(user_message, tools_used, nested_outcome, goal_name, goal_id)
+        def agent_message_fn(user_message: str, tools_used: list[str], nested_outcome: str | None, goal_name: str, goal_id: str = "") -> str:
+            return generate_agent_message(user_message, tools_used, nested_outcome, goal_name, goal_id)
+    else:
+        sample_goal_fn = None
+        persona_turn_fn = None
+        agent_message_fn = None
+
+    # In fast mode, disable required_goals_for_finish so dynamics match theory (theory assumes no filter)
+    goal_set_for_gen = goal_set
+    if not use_llm and getattr(goal_set, "required_goals_for_finish", None):
+        from copy import copy
+        goal_set_for_gen = copy(goal_set)
+        goal_set_for_gen.required_goals_for_finish = []
 
     for i in range(n_samples):
         persona: PersonaSpec = random.choices(persona_set.personas, weights=weights)[0]
         gen = TrajectoryGenerator(
-            goal_set,
+            goal_set_for_gen,
             persona,
-            seed=seed if seed is not None else None,
+            seed=None,  # Don't reseed - use global RNG state seeded above
             sample_goal_fn=sample_goal_fn,
             persona_turn_fn=persona_turn_fn,
             agent_message_fn=agent_message_fn,

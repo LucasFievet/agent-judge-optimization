@@ -25,10 +25,12 @@ def generate_persona_name(
         "Reply with only the label, no quotes or explanation."
     )
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=_get_api_key())
-        m = genai.GenerativeModel(model)
-        r = m.generate_content(prompt)
+        from google import genai
+        key = _get_api_key()
+        if not key:
+            return ""
+        client = genai.Client(api_key=key)
+        r = client.models.generate_content(model=model, contents=prompt)
         if r and r.text:
             name = r.text.strip().strip('"\'')
             if name and len(name) < 80:
