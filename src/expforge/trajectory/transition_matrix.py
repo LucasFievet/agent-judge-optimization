@@ -11,13 +11,14 @@ from expforge.goal import GoalSet
 
 
 # Same formula as TransitionSampler.sample_nested; wider range (0.25–1.0) so experiments can vary ~0–30%
+# Coefficients: base + determined + tool_quality (tool quality has more weight so q1 vs q2 impact is visible)
 P_FAILED = 0.3
 P_CONTINUE_MAX = 0.12
 
 
 def _nested_probs_for(persona_determined: float, tool_quality: float) -> dict[str, float]:
     """Compute nested outcome probabilities ensuring they sum to 1.0. p_success in [0.25, 1.0] for system variance."""
-    p_success = 0.25 + 0.50 * persona_determined + 0.25 * tool_quality
+    p_success = 0.20 + 0.45 * persona_determined + 0.35 * tool_quality
     p_success = max(0.0, min(1.0, p_success))
     p_failed = P_FAILED
     p_continue_raw = 1.0 - p_success - p_failed

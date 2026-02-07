@@ -22,6 +22,11 @@ from expforge.verifier.report import (
     figures,
     figures_batch_distributions,
 )
+from expforge.verifier.confidence import (
+    run_confidence_batch_data,
+    figures_confidence,
+    ConfidenceBatchData,
+)
 
 __all__ = [
     "run_verification",
@@ -39,4 +44,7 @@ __all__ = [
     "write_summary_table",
     "figures",
     "figures_batch_distributions",
+    "run_confidence_batch_data",
+    "figures_confidence",
+    "ConfidenceBatchData",
 ]

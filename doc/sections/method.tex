@@ -234,6 +234,36 @@ with $\mu_{q_1}$, $\mu_{q_2}$, $\sigma_{q_1}^2$, $\sigma_{q_2}^2$ from \eqref{eq
 \textbf{Summary.} Under factorized $\pi_g$ \eqref{eq:factorize} and a finite persona distribution, all quantities in this section---population-level absorption and hitting probabilities, expected length, conditionals, correlation, $\mathbb{P}(p_{\mathsf{sub}}(\mathbf{u}; q_2) > p_{\mathsf{sub}}(\mathbf{u}; q_1))$, and the moments $\mu_q$, $\sigma_q^2$ needed for sample size \eqref{eq:sample-size}---are computable in closed form (finite sums of matrix operations). With continuous users, \emph{probit link + Gaussian} $\mathbf{u}$ (and linear $A_g$) yields closed-form expectations of transition probabilities; \emph{Beta}-distributed success rates and \emph{logistic–normal} (or probit-approximated) models give tractable or closed-form integrals in simplified or approximate settings; \emph{Dirichlet or mixture} user models reduce to finite sums of such terms. Without factorization or a simple $p(\mathbf{u})$, Monte Carlo over $\mathbf{u}$ remains the default.
 
 % -----------------------------------------------------------------------------
+\subsection{Condition for publish as a more powerful and valid proxy for subscribe}
+\label{sec:method:proxy-condition}
+% -----------------------------------------------------------------------------
+
+We ask: under what condition can we use the \emph{publish} rate both as a \emph{positively correlated proxy} for (future) subscriptions and as an outcome on which \emph{power increases faster} than on the subscribe rate? The first requirement ensures that a higher publish rate is indicative of higher subscription potential; the second ensures that testing $q_2 > q_1$ on publish reaches a given power with fewer trajectories than testing on subscribe.
+
+\paragraph{Positive correlation (validity of the proxy).}
+Let $\rho$ be the correlation between $Y_{\mathsf{pub}}$ and $Y_{\mathsf{sub}}$ under the population (e.g.\ \eqref{eq:correlation} or \eqref{eq:fp-corr}). For publish to be a valid proxy for subscription in the sense that ``more publish tends to go with more subscribe,'' we need
+\begin{equation}
+  \rho > 0. \label{eq:proxy-valid}
+\end{equation}
+When $\rho > 0$, a system that increases the probability of ever publishing also tends to increase the probability of ever subscribing; when $\rho \leq 0$, the proxy is uninformative or misleading.
+
+\paragraph{Faster power growth (efficiency of the proxy test).}
+For the one-sided test $H_0: \mu^{(q_1)} \geq \mu^{(q_2)}$ vs $H_1: \mu^{(q_2)} > \mu^{(q_1)}$ at significance level $\alpha$ and power $1-\beta$, the required sample size per system is $N = (z_\alpha + z_\beta)^2 (\sigma_1^2 + \sigma_2^2) / \delta^2$. Power at sample size $N$ increases with the \emph{standardized effect size} $\delta / \sqrt{\sigma_1^2 + \sigma_2^2}$; so power increases \emph{faster} for the outcome that has the larger standardized effect. The ratio of the sample size for subscribe to that for publish is
+\begin{equation}
+  \frac{N_{\mathsf{sub}}}{N_{\mathsf{pub}}} = \frac{(\sigma_{\mathsf{sub},q_1}^2 + \sigma_{\mathsf{sub},q_2}^2) / \delta_{\mathsf{sub}}^2}{(\sigma_{\mathsf{pub},q_1}^2 + \sigma_{\mathsf{pub},q_2}^2) / \delta_{\mathsf{pub}}^2} = \frac{\delta_{\mathsf{pub}}^2 / (\sigma_{\mathsf{pub},q_1}^2 + \sigma_{\mathsf{pub},q_2}^2)}{\delta_{\mathsf{sub}}^2 / (\sigma_{\mathsf{sub},q_1}^2 + \sigma_{\mathsf{sub},q_2}^2)}.
+\end{equation}
+So the power of the publish-rate test increases faster than that of the subscribe-rate test (i.e.\ we need fewer trajectories to achieve the same power when using publish) if and only if $N_{\mathsf{sub}} / N_{\mathsf{pub}} > 1$, i.e.\ the standardized effect size (squared) is larger for publish:
+\begin{equation}
+  \frac{\delta_{\mathsf{pub}}^2}{\sigma_{\mathsf{pub},q_1}^2 + \sigma_{\mathsf{pub},q_2}^2} > \frac{\delta_{\mathsf{sub}}^2}{\sigma_{\mathsf{sub},q_1}^2 + \sigma_{\mathsf{sub},q_2}^2}. \label{eq:proxy-efficient}
+\end{equation}
+
+\paragraph{Combined condition.}
+\begin{quote}
+\emph{For publish to be both a positively correlated proxy for future subscriptions and an outcome on which power increases faster than for subscribe, the model must satisfy: (i) $\rho > 0$ \eqref{eq:proxy-valid}, and (ii) the standardized effect size for publish is greater than for subscribe \eqref{eq:proxy-efficient}. Under the finite-persona model of \S\ref{sec:method:finite-personas}, both $\rho$ and the ratio $N_{\mathsf{sub}}/N_{\mathsf{pub}}$ are computable in closed form from the per-persona hitting probabilities and moments; one can therefore check this condition for any given $q_1$, $q_2$, and user distribution.}
+\end{quote}
+When (i) and (ii) hold, using the publish-rate test is justified both interpretively (publish is a valid proxy for subscription) and statistically (fewer samples are needed to detect a true improvement).
+
+% -----------------------------------------------------------------------------
 \subsection{Observational setting and inference of latent state}
 \label{sec:method:inference}
 % -----------------------------------------------------------------------------

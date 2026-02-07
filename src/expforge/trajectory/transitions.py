@@ -29,7 +29,7 @@ class TransitionSampler:
         if not goal:
             return "continue"
         tool_quality = self.goal_set.tool_quality_for_goal(goal_id)
-        p_success = 0.25 + 0.50 * persona.determined + 0.25 * tool_quality
+        p_success = 0.20 + 0.45 * persona.determined + 0.35 * tool_quality
         p_success = max(0.0, min(1.0, p_success))
         p_failed = 0.3
         p_continue_raw = 1.0 - p_success - p_failed

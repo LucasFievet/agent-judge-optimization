@@ -51,3 +51,15 @@ class GoalSet:
             if t is not None:
                 qualities.append(t.quality)
         return sum(qualities) / len(qualities) if qualities else 0.5
+
+    def with_uniform_tool_quality(self, q: float) -> "GoalSet":
+        """Return a copy of this GoalSet with every tool's quality set to q (for theory/sensitivity)."""
+        new_tools = [Tool(id=t.id, quality=q, name=t.name, meta=dict(t.meta)) for t in self.tools]
+        return GoalSet(
+            experiment_id=self.experiment_id,
+            goals=list(self.goals),
+            tools=new_tools,
+            terminal_states=list(self.terminal_states),
+            outcome_states=list(self.outcome_states),
+            required_goals_for_finish=list(self.required_goals_for_finish),
+        )

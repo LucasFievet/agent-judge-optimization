@@ -15,6 +15,8 @@ from expforge.verifier import (
     run_verification_batch_data,
     DEFAULT_EXPERIMENTS_DIR,
     figures_batch_distributions,
+    run_confidence_batch_data,
+    figures_confidence,
 )
 
 app = typer.Typer(help="Experiment Forge: simulator and scoring for nested Markov experiments.")
@@ -258,6 +260,63 @@ def verifier_report_cmd(
     batch_figs = figures_batch_distributions(batch_data, out, dpi=150)
     typer.echo(f"[verifier] Rendered figure in {time.perf_counter() - t1:.2f}s")
     for p in batch_figs:
+        typer.echo(f"Figure: {p}")
+
+
+@verifier_app.command("confidence")
+def verifier_confidence_cmd(
+    experiment_id: str = typer.Argument(
+        ...,
+        help="Source experiment id; creates two runs with different tool quality (q1, q2)",
+    ),
+    q1: float = typer.Option(0.45, "--q1", help="Tool quality for first experiment"),
+    q2: float = typer.Option(0.55, "--q2", help="Tool quality for second experiment (should be > q1); 0.45/0.55 gives power ≈ 1 by N=5000"),
+    out_dir: Path = typer.Option(
+        None,
+        "--out-dir",
+        "-o",
+        path_type=Path,
+        help="Directory for figures (default: base_dir/experiment/<id>/confidence_report)",
+    ),
+    base_dir: Path = typer.Option(None, "--base-dir", "-d", path_type=Path),
+    seed: int = typer.Option(42, "--seed", "-s", help="Random seed (used when running simulator)"),
+    total_samples: int = typer.Option(10_000, "--total-samples", help="Total samples per experiment"),
+    batch_size: int = typer.Option(100, "--batch-size", help="Batch size for distribution histograms"),
+    override: bool = typer.Option(False, "--override", help="Delete existing samples and re-run simulator"),
+) -> None:
+    """Run two experiments with tool quality q1 and q2; plot batch distributions, confidence vs N, and P(sub/pub) vs q."""
+    import time
+    import logging
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    logger = logging.getLogger("expforge.verifier.confidence")
+    logger.setLevel(logging.INFO)
+
+    base = base_dir or DEFAULT_EXPERIMENTS_DIR
+    out = out_dir or base / "experiment" / experiment_id / "confidence_report"
+    out.mkdir(parents=True, exist_ok=True)
+    cache1 = out / "batch_data_q1.json"
+    cache2 = out / "batch_data_q2.json"
+
+    t0 = time.perf_counter()
+    data = run_confidence_batch_data(
+        experiment_id,
+        q1=q1,
+        q2=q2,
+        total_samples=total_samples,
+        batch_size=batch_size,
+        base_dir=base,
+        seed=seed,
+        override=override,
+        cache_path_q1=cache1,
+        cache_path_q2=cache2,
+    )
+    typer.echo(f"[verifier] Confidence batch data ready in {time.perf_counter() - t0:.2f}s")
+
+    t1 = time.perf_counter()
+    figs = figures_confidence(data, out, base_dir=base, dpi=150)
+    typer.echo(f"[verifier] Rendered {len(figs)} figures in {time.perf_counter() - t1:.2f}s")
+    for p in figs:
         typer.echo(f"Figure: {p}")
 
 
