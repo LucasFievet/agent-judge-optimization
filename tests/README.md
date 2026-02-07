@@ -20,6 +20,21 @@ Tests the trajectory length calculations:
 
 Run: `python tests/test_theory_moments.py`
 
+### test_theory_edge_cases.py
+Tests edge cases and boundary behavior in the theory package:
+- Zero publish probability (outcome_weights["publish"] = 0)
+- Zero subscribe probability (outcome_weights["subscribe"] = 0)
+- Both publish and subscribe probability set to 0
+- Very high publish weight (strongly favors publish over subscribe)
+- Very low determined persona (minimum success probability)
+- Very high determined persona (maximum success probability)
+- Minimal cycles configuration (high terminal weights)
+- Absorption probabilities sum to 1 invariant
+- Hitting probabilities bounded in [0, 1] invariant
+- Multiple goals with edge case weights
+
+Run: `python tests/test_theory_edge_cases.py`
+
 ### test_verifier_experiments.py
 Tests verification across different experiments and configurations:
 - Validates dummy, test, and verifier_1 experiments
@@ -59,12 +74,12 @@ print(f"Passed: {result.passed}")
   - Large n (5000+): Very tight CIs, high accuracy required, but values converge
 
 **Known seeds** (with current outcome_weights: publish=2.0, subscribe=1.0):
-- `seed=123, 999`: Produce representative samples (pass consistently across all experiments)
-- `seed=42`: Passes dummy and verifier_1, may fail test at n=500
-- `seed=100, 500, 1000, 5678`: May fail at some sample sizes due to statistical variance
+- `seed=111, 333, 444, 555, 777, 999, 2222`: Pass consistently across all experiments (dummy, test, verifier_1)
+- `seed=123`: Passes dummy only, fails test and verifier_1 at n=500
+- `seed=42, 100, 500, 1000, 5678`: May fail at some sample sizes due to statistical variance
 
 **Recommendations**:
-- For testing: Use `seed=123` or `seed=999`, or run with multiple seeds to verify robustness
+- For testing: Use `seed=111` (recommended), `seed=999`, or any from the list above, or run with multiple seeds to verify robustness
 - For production: Accept that ~5-15% of seeds may fail intermediate sample sizes due to variance
 - For debugging: Run with large n (5000+) to minimize random variance
 - When changing outcome_weights: Re-test to find seeds that produce representative samples
