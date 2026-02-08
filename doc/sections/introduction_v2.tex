@@ -1,0 +1,18 @@
+% !TEX root = ../main.tex
+\section{Introduction}
+\label{sec:introduction}
+
+Agents that execute complex, multi-step tasks in tandem with humans are increasingly central to productivity and decision-making. In goal-oriented workflows (e.g., writing assistants where users draft, revise, create tables and charts), success is measured by outcome metrics: whether the user published, subscribed, or completed the intended action, rather than by turn-level correctness alone. A central question for builders and researchers is how system changes (e.g., an improved tool for one goal, or a prompt change) impact these end-user outcomes. Reliable A/B testing, safe deployment, and iterative improvement of agent systems all depend on it.
+
+Existing evaluation approaches face two main limitations when applied to long-horizon, human-in-the-loop workflows \citep{kohavi2020trustworthy, takanobu2020goal, imbens2015causal}. First, small, local changes get diluted in long trajectories: a better tool for one subgoal may improve success there, but the signal is mixed with many other steps and goals, so aggregate metrics are noisy and poorly attributable to the change. Second, goal boundaries are fuzzy and context-dependent: users switch between goals in arbitrary order, and segmenting trajectories into goal-level units often requires ad hoc clustering or heuristics, which undermines reproducibility and interpretability of metrics.
+
+Controlled experiments and synthetic evaluation are standard for measuring treatment effects \citep{kohavi2020trustworthy, rubin2005causal}; causal attribution of outcomes to interventions is formalised in the potential-outcomes framework \citep{imbens2015causal}. In practice, goal-level decomposition and attribution in long trajectories are still hard: sample size and power depend on the structure of the process, and identifying which levers (tools, prompts) have the highest improvement potential usually means heavy experimentation or ad hoc analysis.
+
+We propose a synthetic simulator based on a nested Markov chain over goals and per-goal sub-states, with goal-specific tools influencing transitions. Under a finite set of user personas, outcome probabilities, sample size, and highest-impact levers are computable in closed form. The model can be calibrated to labelled trajectories, and EM for transition estimation corrects for label noise so a perfect labeller is not required. Concretely:
+\begin{itemize}
+  \item \textbf{Proxy metrics} that correlate with monetization and occur more frequently reduce the sample size required for a given power, so experiments can be faster and cheaper.
+  \item \textbf{Optimal A/B allocation} is not 50/50: allocating more trajectories to the noisier system maximizes power and reduces cost.
+  \item \textbf{Leverage:} calibrating the chain to (real or labelled) trajectories yields closed-form sensitivities that identify which tools and prompts have the highest improvement potential, thereby maximizing return on scarce engineering effort and organizational velocity.
+  \item \textbf{Robustness to label noise} via EM for transition estimation (see \S\ref{sec:method:inference}).
+\end{itemize}
+We focus on this synthetic setting and discrete personas; validation on real production logs is left to the outlook. Section~\ref{sec:background} gives background; \S\ref{sec:method} and \S\ref{sec:experiments} present the model and experiments; \S\ref{sec:leverage}, \S\ref{sec:mde}, and \S\ref{sec:optimal-ab} cover design levers (leverage, minimal detectable effect, optimal A/B allocation); \S\ref{sec:conclusion} and \S\ref{sec:outlook} conclude.
