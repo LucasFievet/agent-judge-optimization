@@ -7,7 +7,7 @@ from pathlib import Path
 import typer
 
 from expforge.simulator import run_simulator
-from expforge.scoring import run_experiment_scoring, run_experiment_compare
+from expforge.estimator import run_experiment_scoring, run_experiment_compare
 from expforge.verifier import (
     run_verification,
     run_n_verifications,
@@ -18,6 +18,7 @@ from expforge.verifier import (
     run_confidence_batch_data,
     figures_confidence,
 )
+from expforge.verifier.em import run_em_verification
 
 app = typer.Typer(help="Experiment Forge: simulator and scoring for nested Markov experiments.")
 
@@ -318,6 +319,100 @@ def verifier_confidence_cmd(
     typer.echo(f"[verifier] Rendered {len(figs)} figures in {time.perf_counter() - t1:.2f}s")
     for p in figs:
         typer.echo(f"Figure: {p}")
+
+
+@verifier_app.command("em")
+def verifier_em_cmd(
+    experiment_id: str = typer.Argument(
+        ...,
+        help="Experiment id (uses existing samples or runs simulator to generate them)",
+    ),
+    base_dir: Path = typer.Option(None, "--base-dir", "-d", path_type=Path),
+    n_samples: int = typer.Option(500, "--n-samples", "-n", help="Number of trajectories"),
+    phase_error_rate: float = typer.Option(0.05, "--phase-error", help="Phase label error rate (0 = no noise)"),
+    persona_error_rate: float = typer.Option(0.02, "--persona-error", help="Persona label error rate"),
+    seed: int = typer.Option(42, "--seed", "-s", help="Random seed"),
+    tolerance: float = typer.Option(0.08, "--tolerance", "-t", help="Max allowed |P_est - P_true| to pass"),
+    no_em: bool = typer.Option(False, "--no-em", help="Use raw counts (MLE) instead of EM"),
+    em_iters: int = typer.Option(30, "--em-iters", help="EM iterations when using EM"),
+    verbose: bool = typer.Option(True, "--verbose/--no-verbose", "-v", help="Show progress logs"),
+) -> None:
+    """Verify that the EM estimator recovers transition probabilities from (optionally noisy) labelled trajectories."""
+    if verbose:
+        import logging
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
+        for name in ("expforge.verifier.em", "expforge.estimator.em", "expforge.noise"):
+            logging.getLogger(name).setLevel(logging.INFO)
+    base = base_dir or DEFAULT_EXPERIMENTS_DIR
+    result = run_em_verification(
+        experiment_id,
+        base_dir=base,
+        n_samples=n_samples,
+        phase_error_rate=phase_error_rate,
+        persona_error_rate=persona_error_rate,
+        seed=seed,
+        tolerance=tolerance,
+        use_em=not no_em,
+        em_iters=em_iters,
+    )
+    typer.echo(f"Experiment: {result.experiment_id}  N={result.n_samples}")
+    typer.echo(f"Noise: phase_error={result.phase_error_rate}, persona_error={result.persona_error_rate}")
+    typer.echo("")
+
+    # Data summary
+    traj_dist = result.details.get("traj_length_dist", {})
+    if traj_dist and traj_dist.get("n"):
+        typer.echo("Trajectory length (steps):")
+        typer.echo("  min=%s  max=%s  mean=%s  median=%s  n=%s" % (
+            traj_dist.get("min", ""), traj_dist.get("max", ""), traj_dist.get("mean", ""),
+            traj_dist.get("median", ""), traj_dist.get("n", "")))
+        for h in traj_dist.get("histogram", []):
+            typer.echo("  length %s: %s trajectories" % (h["range"], h["count"]))
+        typer.echo("")
+
+    trans_counts = result.details.get("transition_type_counts", {})
+    if trans_counts:
+        typer.echo("Observed transition counts (from_phase → to_phase, segments length≥2 only):")
+        for (f, t), c in sorted(trans_counts.items(), key=lambda x: -x[1]):
+            typer.echo("  %s → %s: %d" % (f, t, c))
+        typer.echo("  total transitions: %d" % sum(trans_counts.values()))
+        typer.echo("")
+
+    relabel = result.details.get("relabel_stats", {})
+    if relabel.get("n_with_label_true"):
+        typer.echo("Relabelling stats (noisy vs true):")
+        typer.echo("  trajectories with label_true: %d" % relabel["n_with_label_true"])
+        typer.echo("  phase flips: %d / %d (%.2f%%)" % (
+            relabel["n_phase_flips"], relabel["n_phase_total"],
+            100.0 * relabel["phase_flip_rate"] if relabel["n_phase_total"] else 0))
+        typer.echo("  persona flips: %d" % relabel["n_persona_flips"])
+        typer.echo("")
+
+    typer.echo("Ground truth comparison (nested transition P(phase) per persona × goal):")
+    typer.echo(f"  Max |P_est - P_true| = {result.max_abs_diff:.4f}  (tolerance = {result.tolerance})")
+    typer.echo(f"  Mean |diff|          = {result.mean_abs_diff:.4f}")
+    typer.echo(f"  Result: {'PASS' if result.passed else 'FAIL'}")
+    if result.details.get("error"):
+        typer.echo(f"  Error: {result.details['error']}")
+    segment_counts = result.details.get("segment_counts", {})
+    diff_details = result.details.get("diff_details", [])
+    if diff_details:
+        typer.echo("")
+        typer.echo("Note: Only segments of length ≥ 2 inform transition estimates; length-1 segments")
+        typer.echo("      only inform the confusion matrix. Large errors are plausible when n_trans is low.")
+        typer.echo("")
+        typer.echo("Largest differences (persona, goal, phase → P_true vs P_est, diff) [n_seg, n_trans]:")
+        seen_keys = set()
+        for e in diff_details[:10]:
+            key = (e["persona"], e["goal"])
+            n_seg, n_trans = segment_counts.get(key, (0, 0))
+            if key not in seen_keys:
+                seen_keys.add(key)
+                typer.echo("  %s | %s | %-9s → true=%.4f  est=%.4f  diff=%+.4f  [%d seg, %d w/ trans]" % (
+                    e["persona"], e["goal"], e["phase"], e["P_true"], e["P_est"], e["diff"], n_seg, n_trans))
+            else:
+                typer.echo("  %s | %s | %-9s → true=%.4f  est=%.4f  diff=%+.4f" % (
+                    e["persona"], e["goal"], e["phase"], e["P_true"], e["P_est"], e["diff"]))
 
 
 @verifier_app.command("batch")

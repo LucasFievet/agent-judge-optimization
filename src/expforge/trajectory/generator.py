@@ -182,6 +182,13 @@ class TrajectoryGenerator:
                 break
 
         outcome = state.top_level if steps and steps[-1].terminal else None
+        # Ground-truth label for estimator/EM: persona_id and per-step (goal_id, phase)
+        goal_phase = []
+        for s in steps:
+            goal_id = s.top_level_state if s.top_level_state not in ("start", "publish", "subscribe", "finished", "abandoned") else ""
+            phase = s.nested_state if s.nested_state else "continue"
+            goal_phase.append({"goal_id": goal_id, "phase": phase})
+        label = {"persona_id": self.persona.id, "goal_phase": goal_phase}
         logger.debug(f"Generated trajectory {trajectory_id}: {len(steps)} steps, outcome={outcome}")
         return Trajectory(
             trajectory_id=trajectory_id,
@@ -189,6 +196,7 @@ class TrajectoryGenerator:
             sample_goal=sample_goal,
             steps=steps,
             outcome=outcome,
+            label=label,
         )
 
 

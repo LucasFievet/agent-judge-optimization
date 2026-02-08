@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Any
 
-from expforge.scoring.goal_scoring import score_goal_phases_for_trajectory
+from expforge.estimator.goal_scoring import score_goal_phases_for_trajectory
 
 
 def segment_by_phases(phase_labels: list[str]) -> list[tuple[int, int]]:

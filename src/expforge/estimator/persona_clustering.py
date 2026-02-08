@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Any
 
-from expforge.scoring.persona_scoring import score_persona_logits_from_path
+from expforge.estimator.persona_scoring import score_persona_logits_from_path
 
 
 def assign_persona_soft(trajectory_path: Path, n_personas: int = 5) -> list[float]:

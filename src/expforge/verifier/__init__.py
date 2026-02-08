@@ -27,6 +27,7 @@ from expforge.verifier.confidence import (
     figures_confidence,
     ConfidenceBatchData,
 )
+from expforge.verifier.em import run_em_verification, EMVerificationResult
 
 __all__ = [
     "run_verification",
@@ -47,4 +48,6 @@ __all__ = [
     "run_confidence_batch_data",
     "figures_confidence",
     "ConfidenceBatchData",
+    "run_em_verification",
+    "EMVerificationResult",
 ]

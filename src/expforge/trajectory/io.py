@@ -30,6 +30,7 @@ def load_trajectory(path: Path | str) -> Trajectory:
         sample_goal=data.get("sample_goal", ""),
         steps=steps,
         outcome=data.get("outcome"),
+        label=data.get("label"),
     )
 
 

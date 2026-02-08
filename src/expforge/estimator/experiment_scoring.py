@@ -6,15 +6,15 @@ from typing import Any
 import yaml
 
 from expforge.verifier.io import DEFAULT_EXPERIMENTS_DIR
-from expforge.scoring.persona_clustering import assign_persona_hard, assign_persona_soft
-from expforge.scoring.goal_scoring import score_goal_phases_for_trajectory
-from expforge.scoring.goal_clustering import segment_trajectory, cluster_goal_segments
-from expforge.scoring.transition_computation import (
+from expforge.estimator.persona_clustering import assign_persona_hard, assign_persona_soft
+from expforge.estimator.goal_scoring import score_goal_phases_for_trajectory
+from expforge.estimator.goal_clustering import segment_trajectory, cluster_goal_segments
+from expforge.estimator.counts import (
     compute_nested_transition_counts,
     compute_top_level_transition_counts,
     normalize_transition_counts,
 )
-from expforge.scoring.metric_computation import (
+from expforge.estimator.metric_computation import (
     expected_metrics_from_transitions,
     metric_confidence_interval,
 )

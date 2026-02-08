@@ -26,6 +26,8 @@ class Trajectory:
     sample_goal: str = ""  # Overarching goal/plan for this sample (LLM-generated)
     steps: list[TrajectoryStep] = field(default_factory=list)
     outcome: str | None = None  # publish | subscribe | finished | abandoned
+    # Ground-truth label for estimator/EM: persona_id and per-step (goal_id, phase)
+    label: dict | None = None  # {"persona_id": str, "goal_phase": [{"goal_id": str, "phase": str}, ...]}
 
     def to_dict(self) -> dict:
         """Serialize for YAML storage. sample_goal first so it appears at the top of the file."""
@@ -48,4 +50,6 @@ class Trajectory:
             "outcome": self.outcome,
             "steps": steps_data,
         }
+        if self.label is not None:
+            out["label"] = self.label
         return out
