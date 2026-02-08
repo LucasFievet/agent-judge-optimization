@@ -5,6 +5,7 @@ a labeller with small unknown error rate (paper §3.8).
 
 import logging
 import random
+import time
 
 logger = logging.getLogger(__name__)
 from copy import deepcopy
@@ -138,10 +139,13 @@ def add_label_noise_to_experiment(
     )
     if max_samples is not None:
         paths = paths[:max_samples]
+    n = len(paths)
+    logger.info("[noise] Adding label noise to %d samples (bottleneck: YAML load/save per file)...", n)
+    t0 = time.perf_counter()
     written = []
     for i, p in enumerate(paths):
         if (i + 1) % 500 == 0 or i == 0:
-            logger.info("[noise] Processing sample %d/%d", i + 1, len(paths))
+            logger.info("[noise] Processing sample %d/%d", i + 1, n)
         rng = random.Random(seed + i if seed is not None else None)
         traj = load_trajectory(p)
         noisy = add_label_noise(
@@ -155,4 +159,6 @@ def add_label_noise_to_experiment(
         out_path = out_dir / p.name
         save_trajectory(noisy, out_path)
         written.append(out_path)
+    elapsed = time.perf_counter() - t0
+    logger.info("[noise] Done in %.1fs (%.1f samples/s)", elapsed, n / elapsed if elapsed > 0 else 0)
     return written

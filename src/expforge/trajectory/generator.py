@@ -115,10 +115,21 @@ class TrajectoryGenerator:
             sample_goal = self.sample_goal_fn(self.goal_set, self.persona)
         conversation_so_far: list[tuple[str, str]] = []
 
+        # Track previous state to determine if we're continuing the same goal or starting fresh
+        prev_goal = None
+        prev_nested = None
+
         for step_num in range(self.max_steps):
             nested_outcome = None
             if state.top_level not in ("start", "publish", "subscribe", "finished", "abandoned"):
-                nested_outcome = self.sampler.sample_nested(self.persona, state.top_level)
+                # If we're in the same goal as previous step, pass prev_nested to respect absorbing states
+                # Otherwise, this is a new goal attempt, so pass None to sample fresh
+                is_same_goal = (state.top_level == prev_goal) and (prev_goal is not None)
+                nested_outcome = self.sampler.sample_nested(
+                    self.persona,
+                    state.top_level,
+                    prev_nested=prev_nested if is_same_goal else None
+                )
                 state.nested = nested_outcome
 
             allowed_next = self.sampler.allowed_next_top_levels(state.top_level, nested_outcome)
@@ -174,6 +185,11 @@ class TrajectoryGenerator:
             )
             steps.append(step)
             conversation_so_far.append((user_message, agent_message))
+
+            # Track previous goal and nested state before updating
+            prev_goal = state.top_level
+            prev_nested = nested_outcome
+
             state.top_level = next_top
             state.nested = None if next_top in ("start", "publish", "subscribe", "finished", "abandoned") else "continue"
             state.quality = quality

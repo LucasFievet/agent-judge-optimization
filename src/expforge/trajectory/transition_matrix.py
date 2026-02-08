@@ -13,7 +13,8 @@ from expforge.goal import GoalSet
 # Same formula as TransitionSampler.sample_nested; wider range (0.25–1.0) so experiments can vary ~0–30%
 # Coefficients: base + determined + tool_quality (tool quality has more weight so q1 vs q2 impact is visible)
 P_FAILED = 0.3
-P_CONTINUE_MAX = 0.12
+# Cap for P(continue) within a goal; higher → longer goal segments and longer trajectories (target mean ~10 steps).
+P_CONTINUE_MAX = 0.40
 
 
 def _nested_probs_for(persona_determined: float, tool_quality: float) -> dict[str, float]:
@@ -38,13 +39,14 @@ def _nested_probs_for(persona_determined: float, tool_quality: float) -> dict[st
     return {"succeeded": round(p_success, 4), "failed": round(p_failed, 4), "continue": round(p_continue, 4)}
 
 
-# Default top-level outcome weights: publish more likely than subscribe (users publish more often; subscribe once)
-# Goals and other options use 1.0 if not listed.
+# Default top-level outcome weights: publish more likely than subscribe; lower finished/abandoned
+# so trajectories tend to have more goals/steps (target mean length ~10, fewer very short runs).
+# Goals use 1.0 if not listed.
 DEFAULT_OUTCOME_WEIGHTS: dict[str, float] = {
     "publish": 2.0,
     "subscribe": 1.0,
-    "finished": 2.0,
-    "abandoned": 2.0,
+    "finished": 0.75,
+    "abandoned": 0.75,
 }
 
 

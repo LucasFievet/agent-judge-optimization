@@ -1,0 +1,23 @@
+% !TEX root = ../main.tex
+\section{Outlook}
+\label{sec:outlook}
+
+We outline directions for future work that would extend the scope and realism of the model.
+
+\paragraph{Hidden Markov models and non-static dynamics.}
+A static Markov chain is not fully realistic for many product flows. Transition probabilities for publish and subscribe likely \emph{depend on failure history} (e.g., repeated failures may reduce the chance of subscribe). Moreover, the probability of subscribing goes to zero after the user has already subscribed unless we model \emph{cancellation}, \emph{re-subscription}, or \emph{upgrades}. Extending to hidden Markov models (HMMs) or time-inhomogeneous chains would allow transition rates to depend on latent state or on the path so far. This would support modelling churn, resubscription, and tier changes explicitly.
+
+\paragraph{Time dependency between messages.}
+The current model does not capture \emph{when} valuable information appears along the trajectory. In practice, the time dependency between messages, e.g., how soon after a key success the user sees a call-to-action, may strongly affect conversion. Incorporating delay or recency into the transition structure (e.g., time since last ``succeeded'' or since last publish) could improve calibration to real data and yield more accurate leverage and sample-size estimates.
+
+\paragraph{Continuous and mixture persona distributions.}
+As noted in \S\ref{sec:method:persona-distributions}, we focused on discrete personas for closed-form tractability. Extending to continuous (e.g., Beta or Gaussian) or mixture-of-personas distributions would allow finer-grained heterogeneity and uncertainty quantification over the user population; closed-form or low-dimensional integral formulations for key quantities (e.g., sample size, correlation) remain an open direction.
+
+\paragraph{Real-data validation and calibration.}
+Validating the simulator against real agent-human interaction data (e.g., from production or logged experiments) would strengthen the claim that the nested structure and calibrated parameters transfer. This could include fitting transition matrices from labelled or partially labelled trajectories and comparing predicted outcome rates and trajectory length to observed ones.
+
+\paragraph{Multi-agent and non-stationary environments.}
+When multiple agents or non-stationary system components (e.g., model updates, seasonal effects) affect the same user population, the current single-chain, fixed-$\mathbf{q}$ setup may be extended to multiple chains or time-varying parameters. Optimal allocation and leverage could then be defined over a portfolio of interventions or over time.
+
+\paragraph{Fairness and per-persona guarantees.}
+The finite-persona model naturally supports per-segment metrics. Future work could formalize \emph{fairness} or \emph{equity} constraints (e.g., minimum improvement for a given persona or demographic proxy) and derive sample-size or allocation rules that guarantee power not only globally but also for specified subgroups.

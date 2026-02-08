@@ -2,5 +2,18 @@
 \section{Experiments}
 \label{sec:experiments}
 
-% Describe setup, datasets, baselines, and present results (tables, figures).
-% Use \ref{sec:method} to refer to the method section.
+We validate the finite-persona theory against simulated trajectories and report on confidence and the EM verifier. Setup and baselines follow \S\ref{sec:method}. Figure~\ref{fig:confidence-vs-n} shows power vs.\ sample size; batch distribution checks are in Figure~\ref{fig:confidence-batch}. The EM verifier run under label noise is summarized in the appendix (Figure~\ref{fig:em-heatmaps}).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/confidence_vs_sample_size.pdf}
+  \caption{Power vs.\ sample size for subscribe and publish-as-proxy; see \S\ref{sec:mde} for minimal detectable effect.}
+  \label{fig:confidence-vs-n}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/confidence_batch_distributions.pdf}
+  \caption{Batch distributions (confidence report) for trajectory-level metrics.}
+  \label{fig:confidence-batch}
+\end{figure}

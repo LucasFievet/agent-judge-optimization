@@ -123,6 +123,46 @@ def _segment_by_goal(goal_phase: list[tuple[Any, str]]) -> list[tuple[Any, list[
     return segments
 
 
+def _sub_segment_by_attempt(segments: list[tuple[Any, list[str]]]) -> list[tuple[Any, list[str]]]:
+    """
+    Split goal segments into sub-segments where each represents one attempt at the goal.
+    An attempt is a sequence of 'continue' phases followed by a terminal phase ('succeeded' or 'failed').
+
+    This is necessary because the Markov model assumes 'succeeded' and 'failed' are absorbing states,
+    but in practice users can retry the same goal multiple times in one trajectory, creating segments
+    like [continue, continue, succeeded, continue, failed]. This function splits such segments at
+    each terminal phase to get: [continue, continue, succeeded] and [continue, failed].
+
+    Args:
+        segments: List of (goal_id, [phases]) where phases may contain multiple attempts
+
+    Returns:
+        List of (goal_id, [phases]) where each sub-segment is one attempt (no 'succeeded' or 'failed'
+        in non-final positions)
+    """
+    sub_segments = []
+    for goal_id, phases in segments:
+        if not phases:
+            continue
+
+        # Split at each succeeded/failed state to create sub-segments
+        current_sub = []
+        for phase in phases:
+            current_sub.append(phase)
+            # If we hit a terminal state, end this sub-segment
+            if phase in ('succeeded', 'failed'):
+                if current_sub:
+                    sub_segments.append((goal_id, current_sub))
+                current_sub = []
+
+        # Add any remaining phases as a sub-segment (shouldn't normally happen,
+        # but handle the case where a segment ends mid-attempt)
+        if current_sub:
+            sub_segments.append((goal_id, current_sub))
+
+    return sub_segments
+
+
 def run_em(
     trajectory_paths: list[Path],
     persona_ids: list[str],
@@ -171,9 +211,22 @@ def run_em(
         for traj_idx, (path, pid, gp) in enumerate(zip(trajectory_paths, all_persona, all_goal_phase)):
             persona_id = persona_ids[pid]
             segments = _segment_by_goal(gp)
-            for goal_id, phases in segments:
+            # Split segments into sub-segments (one attempt per sub-segment)
+            sub_segments = _sub_segment_by_attempt(segments)
+            for goal_id, phases in sub_segments:
                 if not phases or goal_id not in goal_ids:
                     continue
+
+                # For confusion matrix: use all segments including length-1
+                for obs in phases:
+                    # Use uniform prior for single observations (no transition info)
+                    for true_s in PHASES:
+                        confusion_counts[(true_s, obs)] += confusion.get(true_s, {}).get(obs, 1.0 / len(PHASES)) / len(PHASES)
+
+                # For transition estimation: only use segments with length >= 2
+                if len(phases) < 2:
+                    continue
+
                 # Build 3x3 transition: from "continue" use nested row (dict of float); succeeded/failed absorbing
                 row_nested = nested[persona_id][goal_id]
                 trans = {
@@ -186,10 +239,11 @@ def run_em(
                 for t, xi_t in enumerate(xi):
                     for (s, s_next), v in xi_t.items():
                         expected_counts[key][(s, s_next)] += v
-                for t, gam in enumerate(gamma):
-                    obs = phases[t]
-                    for true_s in PHASES:
-                        confusion_counts[(true_s, obs)] += gam[true_s]
+                # Don't double-count confusion matrix - already added above
+                # for t, gam in enumerate(gamma):
+                #     obs = phases[t]
+                #     for true_s in PHASES:
+                #         confusion_counts[(true_s, obs)] += gam[true_s]
 
         # M-step: normalize counts to get transition matrices and confusion
         for pid in persona_ids:
@@ -199,9 +253,13 @@ def run_em(
                 for (f, t), c in expected_counts[key].items():
                     row_sums[f] += c
                 for f in PHASES:
-                    total = row_sums.get(f, 1.0) or 1.0
-                    for t in PHASES:
-                        nested[pid][gid][f][t] = expected_counts[key].get((f, t), 0.0) / total
+                    total = row_sums.get(f, 0.0)
+                    if total > 0:
+                        # Normalize using observed counts
+                        for t in PHASES:
+                            nested[pid][gid][f][t] = expected_counts[key].get((f, t), 0.0) / total
+                    # If no data for this row, keep previous iteration's values (don't update)
+                    # This prevents creating invalid all-zero transition matrices
 
         if estimate_confusion:
             row_sums_c: dict[str, float] = defaultdict(float)
@@ -217,7 +275,9 @@ def run_em(
         for pid, gp in zip(all_persona, all_goal_phase):
             persona_id = persona_ids[pid]
             segments = _segment_by_goal(gp)
-            for goal_id, phases in segments:
+            # Use sub-segments for log-likelihood calculation (consistent with E-step)
+            sub_segments = _sub_segment_by_attempt(segments)
+            for goal_id, phases in sub_segments:
                 if not phases or goal_id not in goal_ids:
                     continue
                 trans = nested[persona_id][goal_id]
@@ -280,7 +340,7 @@ def estimate_transitions_from_labels(
     )
     goal_cluster_labels = [[g for g, _ in row] for row in goal_phase]
     goal_phase_with_ids = [
-        [(goal_ids[g], ph) for g, ph in row] for row in goal_phase
+        [(goal_ids[g] if g >= 0 else '', ph) for g, ph in row] for row in goal_phase
     ]
     counts = compute_nested_transition_counts_from_labels(
         trajectory_paths,

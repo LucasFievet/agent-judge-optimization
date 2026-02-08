@@ -159,9 +159,10 @@ def test_very_high_publish_weight():
 def test_very_low_determined_persona():
     """Test with very low determined value (tests lower bound of success probability).
 
-    Formula: p_success = 0.25 + 0.50*determined + 0.25*quality
-    With determined=0, quality=0: p_success = 0.25 (minimum)
-    After p_continue capping: p_success = 1.0 - p_failed - p_continue = 0.58
+    Current formula: p_success = 0.20 + 0.45*determined + 0.35*quality
+    With determined=0, quality=0: p_success_raw = 0.20, p_failed = 0.3
+    p_continue_raw = 1.0 - 0.20 - 0.3 = 0.50, capped at P_CONTINUE_MAX = 0.40
+    After capping: p_success = 1.0 - 0.3 - 0.4 = 0.30
     """
     personas = [PersonaSpec(
         id="p1", name="Low Determined", weight=1.0, technical=0.5,
@@ -181,10 +182,10 @@ def test_very_low_determined_persona():
     p_failed = nested_probs["failed"]
     p_continue = nested_probs["continue"]
 
-    # Expected: p_success = 0.58, p_failed = 0.3, p_continue = 0.12 (after capping)
-    assert abs(p_success - 0.58) < 0.01, f"Expected p_success=0.58, got {p_success}"
+    # Expected: p_success = 0.30, p_failed = 0.3, p_continue = 0.40 (after capping)
+    assert abs(p_success - 0.30) < 0.01, f"Expected p_success=0.30, got {p_success}"
     assert abs(p_failed - 0.30) < 0.01, f"Expected p_failed=0.30, got {p_failed}"
-    assert abs(p_continue - 0.12) < 0.01, f"Expected p_continue=0.12, got {p_continue}"
+    assert abs(p_continue - 0.40) < 0.01, f"Expected p_continue=0.40, got {p_continue}"
 
     # Theory should handle this
     length = expected_trajectory_length(matrix, "p1", ["goal1"])

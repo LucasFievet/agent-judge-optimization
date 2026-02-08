@@ -1,0 +1,22 @@
+% !TEX root = ../main.tex
+\section{Optimal A/B allocation}
+\label{sec:optimal-ab}
+
+Suppose we have a total budget of $N$ trajectories to compare two systems (e.g., tool quality $q_1$ vs $q_2$). We can split the budget as $n_A$ trajectories under system $q_1$ and $n_B$ under $q_2$, with $n_A + n_B = N$. The power of the one-sided test that $q_2$ is better than $q_1$ depends on this split. \emph{Optimal allocation} chooses $n_A$ and $n_B$ to maximize power for fixed $N$.
+
+\paragraph{Variance of the difference.}
+Let $\widehat{p}_A$ and $\widehat{p}_B$ be the empirical subscribe rates from $n_A$ and $n_B$ trajectories, with population means $\mu_A$, $\mu_B$ and variances $\sigma_A^2$, $\sigma_B^2$ (between-persona plus within-persona Bernoulli, as in \S\ref{sec:method:theory}). The difference $\widehat{p}_B - \widehat{p}_A$ has mean $\mu_B - \mu_A = \delta$ and variance
+\begin{equation}
+  \mathrm{Var}(\widehat{p}_B - \widehat{p}_A) \approx \frac{\sigma_A^2}{n_A} + \frac{\sigma_B^2}{n_B}.
+\end{equation}
+For a one-sided test at level $\alpha$ and power $1 - \beta$, power increases when the standardized effect $\delta / \sqrt{\mathrm{Var}(\widehat{p}_B - \widehat{p}_A)}$ is larger, i.e., when the variance of the difference is smaller.
+
+\paragraph{Optimal split.}
+Minimizing $\sigma_A^2/n_A + \sigma_B^2/n_B$ subject to $n_A + n_B = N$ yields the optimal allocation
+\begin{equation}
+  \frac{n_A}{n_B} = \frac{\sigma_A}{\sigma_B}, \qquad \text{so} \qquad n_A = N\, \frac{\sigma_A}{\sigma_A + \sigma_B}, \quad n_B = N\, \frac{\sigma_B}{\sigma_A + \sigma_B}. \label{eq:optimal-split}
+\end{equation}
+So we allocate more trajectories to the system with the \emph{larger} variance: that system's estimate is noisier, so it benefits from a larger sample to reduce the variance of $\widehat{p}_B - \widehat{p}_A$. When $\sigma_A = \sigma_B$, the optimal split is $n_A = n_B = N/2$.
+
+\paragraph{Practical use.}
+Under the finite-persona model, $\sigma_A^2$ and $\sigma_B^2$ are computable from the per-persona outcome probabilities under $q_1$ and $q_2$. One can therefore compute the optimal $(n_A, n_B)$ for a given $N$ and use it when collecting data. If the two systems have very different variances (e.g., one has high between-persona variance), the optimal split can deviate substantially from 50/50; using the optimal allocation then yields higher power than an equal split for the same total $N$.

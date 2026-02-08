@@ -53,8 +53,14 @@ def sample_size_subscribe(
     q2: float = 0.6,
     goal_set: GoalSet | None = None,
     persona_set: PersonaSet | None = None,
+    *,
+    return_continuous: bool = False,
 ) -> float:
-    """Required N per system to detect subscribe-rate difference (doc eq. fp-N)."""
+    """Required N per system to detect subscribe-rate difference (doc eq. fp-N).
+
+    Outcome: P(ever subscribe) — user subscribes at most once. When return_continuous
+    is True, returns the raw N (before ceiling) for smooth plots.
+    """
     from scipy import stats
 
     if goal_set is None or persona_set is None:
@@ -79,6 +85,8 @@ def sample_size_subscribe(
     if delta_val <= 0:
         return np.inf
     N = (z_alpha + z_beta) ** 2 * (sigs[0] + sigs[1]) / (delta_val ** 2)
+    if return_continuous:
+        return float(N)
     return float(np.ceil(N))
 
 
@@ -93,8 +101,15 @@ def sample_size_publish_proxy(
     q2: float = 0.6,
     goal_set: GoalSet | None = None,
     persona_set: Any = None,
+    *,
+    return_continuous: bool = False,
 ) -> tuple[float, float]:
-    """N_pub for publish-as-proxy and ratio N_sub/N_pub. Returns (N_pub, ratio)."""
+    """N_pub for publish-as-proxy and ratio N_sub/N_pub. Returns (N_pub, ratio).
+
+    Proxy outcome: P(ever publish). We care about publish actions *before* subscribe
+    (user subscribes at most once); ever-publish is a tractable stand-in. When
+    return_continuous is True, N_pub and ratio use raw N (no ceiling) for smooth plots.
+    """
     from scipy import stats
 
     if goal_set is None or persona_set is None:
@@ -124,6 +139,9 @@ def sample_size_publish_proxy(
     N_sub = sample_size_subscribe(
         transition_matrix, persona_weights, persona_ids, goal_ids,
         alpha=alpha, power=power, delta=None, q1=q1, q2=q2, goal_set=goal_set, persona_set=persona_set,
+        return_continuous=return_continuous,
     )
     ratio = N_sub / N_pub if N_pub > 0 else np.nan
+    if return_continuous:
+        return float(N_pub), float(ratio)
     return float(np.ceil(N_pub)), float(ratio)

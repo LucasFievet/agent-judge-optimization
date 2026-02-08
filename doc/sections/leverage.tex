@@ -1,0 +1,34 @@
+% !TEX root = ../main.tex
+\section{Leverage: where to invest improvement effort}
+\label{sec:leverage}
+
+In practice we have limited resources to improve a system: we can invest in \emph{tool quality} (e.g., better APIs or models for specific goals), \emph{prompt augmentation} (e.g., persona- or goal-specific instructions), or both. Not all levers have the same impact per unit of effort. This section defines \emph{leverage} and how to use it to prioritize improvements.
+
+\paragraph{Concept.}
+Suppose we care about a population outcome such as $\mathbb{P}(\mathsf{subscribe})$ or $\mathbb{P}(\mathsf{finished})$. Each possible improvement has:
+\begin{itemize}
+  \item \textbf{Impact:} the change in the outcome when we apply that improvement (e.g., raise tool quality $q_g$ for goal $g$ by a small amount, or improve prompts for a given persona).
+  \item \textbf{Effort:} the cost of implementing that improvement (e.g., one unit per goal, or per persona-goal pair).
+\end{itemize}
+The \emph{leverage} of an improvement is the ratio impact / effort. Prioritizing by leverage directs effort where marginal gains are largest.
+
+\paragraph{Impact (sensitivity).}
+Under the finite-persona model of \S\ref{sec:method:finite-personas}, the outcome probabilities are closed-form functions of the transition matrix, which in turn depends on tool qualities $\{q_g\}$ and user traits (e.g., determination $u_{\mathrm{det}}$). We can therefore compute:
+\begin{itemize}
+  \item \textbf{Global tool quality:} $\partial \mathbb{P}(\mathsf{subscribe}) / \partial q$ when all goals share the same $q$ (e.g., from \eqref{eq:fp-hit} and the chain rule through the nested success probabilities).
+  \item \textbf{Per-goal tool quality:} $\partial \mathbb{P}(\mathsf{subscribe}) / \partial q_g$ when only the quality of goal $g$ is varied; this identifies which goal's tool, if improved, moves the needle most.
+  \item \textbf{Per-persona (prompt augmentation):} $\partial \mathbb{P}(\mathsf{subscribe}) / \partial u_{\mathrm{det}}$ per persona, or the population-weighted sensitivity; this identifies which user segment benefits most from better prompting (e.g., more determined users may already subscribe often, so the marginal gain from prompt changes could be larger for less determined personas).
+\end{itemize}
+In practice these derivatives are obtained by finite differences: compute the outcome at the current parameters and at a slightly perturbed value, then form the difference quotient.
+
+\paragraph{Effort.}
+A simple model is to assign one unit of effort per improvement target (e.g., one goal, or one persona-goal pair). A more refined model weights effort by ``distance to good'': e.g., improving a goal whose current $q_g$ is low may cost more (e.g., $1 / (1 - q_g)$) than improving one that is already near 1. For prioritization, the key is to use a consistent effort definition so that leverage is comparable across levers.
+
+\paragraph{How to action.}
+\begin{enumerate}
+  \item \textbf{Compute sensitivities} for the outcome of interest (e.g., subscribe rate) with respect to each lever: per-goal $q_g$, and optionally per-persona parameters if prompt augmentation is in scope.
+  \item \textbf{Define effort} for each lever (e.g., 1 per goal, or cost proportional to current gap).
+  \item \textbf{Rank by leverage} = impact / effort. The top entries are the goals (or persona-goal pairs) where improvement yields the largest gain per unit cost.
+  \item \textbf{Allocate budget:} spend improvement budget on the highest-leverage levers first until the budget is exhausted or leverage drops below a threshold.
+\end{enumerate}
+Under the closed-form finite-persona model, steps 1 to 3 can be automated: sensitivities are obtained by finite differences from the closed-form outcome formulas \eqref{eq:fp-hit} to \eqref{eq:fp-moments}. The result is a \emph{leverage table} or bar chart (e.g., ``Improving tool for goal X gives the largest $\Delta \mathbb{P}(\mathsf{subscribe})$ per effort'') that practitioners can use to decide where to invest next.

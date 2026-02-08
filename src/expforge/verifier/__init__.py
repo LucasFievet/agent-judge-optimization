@@ -28,6 +28,7 @@ from expforge.verifier.confidence import (
     ConfidenceBatchData,
 )
 from expforge.verifier.em import run_em_verification, EMVerificationResult
+from expforge.verifier.figures_theory import figure_sample_size_vs_publish_heaviness
 
 __all__ = [
     "run_verification",
@@ -50,4 +51,5 @@ __all__ = [
     "ConfidenceBatchData",
     "run_em_verification",
     "EMVerificationResult",
+    "figure_sample_size_vs_publish_heaviness",
 ]

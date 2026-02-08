@@ -31,6 +31,7 @@
 % Document
 % -----------------------------------------------------------------------------
 \begin{document}
+\sloppy
 
 \maketitle
 
@@ -39,12 +40,31 @@
 \input{sections/related_work}
 \input{sections/method}
 \input{sections/experiments}
+\input{sections/leverage}
+\input{sections/minimal_detectable_effect}
+\input{sections/optimal_ab_allocation}
 \input{sections/conclusion}
+\input{sections/outlook}
 
 % -----------------------------------------------------------------------------
 % References
 % -----------------------------------------------------------------------------
 \bibliographystyle{plainnat}
 \bibliography{references}
+
+% -----------------------------------------------------------------------------
+% Appendix
+% -----------------------------------------------------------------------------
+\clearpage
+\appendix
+\section{EM verifier: estimated vs.\ ground-truth transition heatmaps}
+\label{sec:appendix-em-heatmaps}
+
+\begin{figure}[!ht]
+  \centering
+  \includegraphics[width=\linewidth,height=\dimexpr\textheight-8em\relax,keepaspectratio]{figures/em_heatmaps.pdf}
+  \caption{EM-estimated vs.\ ground-truth transition probabilities (nested phase $\to$ phase) per persona and goal. Each cell is a (persona, goal) pair; rows are true probabilities, columns estimated.}
+  \label{fig:em-heatmaps}
+\end{figure}
 
 \end{document}

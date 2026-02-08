@@ -22,9 +22,18 @@ class TransitionSampler:
         from expforge.trajectory.transition_matrix import DEFAULT_OUTCOME_WEIGHTS
         self.outcome_weights = outcome_weights or DEFAULT_OUTCOME_WEIGHTS
 
-    def sample_nested(self, persona: PersonaSpec, goal_id: str) -> str:
+    def sample_nested(self, persona: PersonaSpec, goal_id: str, prev_nested: str | None = None) -> str:
         """Sample nested state (succeeded, continue, failed) for the goal.
+
+        Implements a Markov chain where succeeded/failed are absorbing states:
+        - If prev_nested is 'succeeded' or 'failed', return that same state (absorbing)
+        - Otherwise (prev_nested is None, 'continue', or first step), sample from transition probabilities
+
         p_success in [0.25, 1.0] so experiments can vary ~0–30% (low determined + weak tools → more abandon)."""
+        # Absorbing states: if already succeeded or failed, stay in that state
+        if prev_nested in ("succeeded", "failed"):
+            return prev_nested
+
         goal = next((g for g in self.goal_set.goals if g.id == goal_id), None)
         if not goal:
             return "continue"
@@ -33,11 +42,11 @@ class TransitionSampler:
         p_success = max(0.0, min(1.0, p_success))
         p_failed = 0.3
         p_continue_raw = 1.0 - p_success - p_failed
-        # Cap continue so we resolve (succeeded/failed) often → shorter trajectories
-        p_continue = min(0.12, max(0.0, p_continue_raw))
+        from expforge.trajectory.transition_matrix import P_CONTINUE_MAX
+        p_continue = min(P_CONTINUE_MAX, max(0.0, p_continue_raw))
 
         # Adjust p_success if we capped p_continue
-        if p_continue_raw > 0.12:
+        if p_continue_raw > P_CONTINUE_MAX:
             p_success = 1.0 - p_failed - p_continue
         # Handle case where p_success + p_failed > 1.0 (p_continue_raw < 0)
         elif p_continue_raw < 0:
@@ -59,6 +68,10 @@ class TransitionSampler:
 
         Per PRD: Terminal states are finished and abandoned only.
         Publish and subscribe are non-terminal and can transition to goals or terminal states.
+
+        IMPORTANT: When nested_outcome="continue", we must stay in the current goal to observe
+        the full Markov chain trajectory. Otherwise, we create incomplete segments that don't
+        properly inform transition estimation.
         """
         if current == "start":
             return list(self._goal_ids) if self._goal_ids else ["finished"]
@@ -75,6 +88,9 @@ class TransitionSampler:
             return self._goal_ids + ["publish", "subscribe", "finished"]
         if nested_outcome == "failed":
             return self._goal_ids + ["abandoned"]
+        if nested_outcome == "continue":
+            # Must stay in current goal to complete the attempt
+            return [current]
         return self._goal_ids + ["publish", "subscribe", "finished", "abandoned"]
 
     def sample_top_level(

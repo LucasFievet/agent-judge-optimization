@@ -1,0 +1,22 @@
+% !TEX root = ../main.tex
+\section{Minimal detectable effect}
+\label{sec:mde}
+
+When planning an A/B comparison of two systems (e.g., tool quality $q_1$ vs $q_2$), we usually ask: ``How many trajectories do I need to detect a given improvement?'' The sample-size formula \eqref{eq:sample-size} (and \eqref{eq:fp-N}) answers that. The \emph{inverse} question is equally important: for a \emph{fixed} sample size $N$ and a chosen power (e.g., 80\%) and significance level $\alpha$, what is the \emph{smallest} true difference $\delta = \mu_{q_2} - \mu_{q_1}$ that we can detect? That difference is the \emph{minimal detectable effect} (MDE).
+
+\paragraph{Definition.}
+For a one-sided test $H_0: \mu_1 \geq \mu_2$ vs $H_1: \mu_2 > \mu_1$ with significance level $\alpha$ and power $1 - \beta$, the required sample size per system is
+\begin{equation}
+  N = \frac{(z_\alpha + z_\beta)^2\, (\sigma_1^2 + \sigma_2^2)}{\delta^2},
+\end{equation}
+where $\delta = \mu_2 - \mu_1 > 0$ and $\sigma_q^2$ is the variance of the outcome (e.g., subscribe rate) under system $q$. Solving for $\delta$ when $N$ is fixed gives
+\begin{equation}
+  \delta_{\mathrm{MDE}} = (z_\alpha + z_\beta)\, \sqrt{\frac{\sigma_1^2 + \sigma_2^2}{N}}. \label{eq:mde}
+\end{equation}
+So the MDE is proportional to the pooled standard deviation and inversely proportional to $\sqrt{N}$. Under the finite-persona model, $\sigma_1^2$ and $\sigma_2^2$ are closed form for each pair $(q_1, q_2)$; one can therefore compute $\delta_{\mathrm{MDE}}$ as a function of $N$, or plot $\delta_{\mathrm{MDE}}(N)$ to see how sensitivity improves with sample size.
+
+\paragraph{Interpretation.}
+If the true difference in subscribe rates between the two systems is at least $\delta_{\mathrm{MDE}}$, then with $N$ trajectories per system we have probability $1 - \beta$ (e.g., 80\%) of correctly concluding that $q_2$ is better than $q_1$ at level $\alpha$. If the true difference is smaller than $\delta_{\mathrm{MDE}}$, the experiment is underpowered: we may fail to reject $H_0$ even when $q_2$ is better. Thus $\delta_{\mathrm{MDE}}$ tells us the ``resolution'' of the experiment: we can only claim to detect improvements that are at least this large.
+
+\paragraph{Use in design.}
+When designing an experiment, (i) choose a target MDE (e.g., ``we want to detect a 5 percentage-point increase in subscribe rate''), (ii) use the sample-size formula to find $N$ that achieves the desired power at that $\delta$, or (iii) fix $N$ (e.g., from a budget) and use \eqref{eq:mde} to report the MDE so that stakeholders understand what size of effect the experiment can reliably detect. Reporting the MDE alongside the estimated effect and confidence interval avoids overinterpreting underpowered results. Power vs.\ sample size for subscribe and publish-as-proxy is illustrated in Figure~\ref{fig:confidence-vs-n} (experiments).

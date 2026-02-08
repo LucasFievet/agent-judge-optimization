@@ -19,7 +19,7 @@ from expforge.verifier.io import (
     DEFAULT_EXPERIMENTS_DIR,
 )
 from expforge.estimator.em import estimate_transitions_from_labels
-from expforge.estimator.em import _segment_by_goal  # for segment count diagnostic
+from expforge.estimator.em import _segment_by_goal, _sub_segment_by_attempt  # for segment count diagnostic
 from expforge.noise import add_label_noise_to_experiment
 
 
@@ -125,28 +125,66 @@ def _trajectory_length_distribution(
     }
 
 
+def _outcome_counts(trajectory_paths: list[Path]) -> dict[str, int]:
+    """Count how many trajectories ended in publish, subscribe, finished, abandoned."""
+    from expforge.trajectory.io import load_trajectory
+
+    counts: dict[str, int] = {}
+    for path in trajectory_paths:
+        try:
+            traj = load_trajectory(path)
+            o = traj.outcome or "unknown"
+            counts[o] = counts.get(o, 0) + 1
+        except Exception:
+            pass
+    return counts
+
+
 def _transition_type_counts(
     trajectory_paths: list[Path],
     persona_ids: list[str],
     goal_ids: list[str],
-) -> dict[tuple[str, str], int]:
-    """Count observed (from_phase, to_phase) transitions in segments of length >= 2."""
+) -> dict:
+    """
+    Count (from_phase, to_phase) within goal segments of length >= 2 (nested chain only).
+    Also total_steps across all trajectories (for context: N trajs × mean length ≈ total steps).
+    """
     from expforge.estimator.counts import _get_label_sequences
+    from expforge.trajectory.io import load_trajectory
 
     pid_to_idx = {p: i for i, p in enumerate(persona_ids)}
     counts: dict[tuple[str, str], int] = {}
+    per_goal: dict[str, dict[tuple[str, str], int]] = {gid: {} for gid in goal_ids}
+
+    total_steps = 0
+    for path in trajectory_paths:
+        try:
+            traj = load_trajectory(path)
+            total_steps += len(traj.steps)
+        except Exception:
+            pass
 
     for path in trajectory_paths:
         pid, gp = _get_label_sequences(path)
         persona_id = persona_ids[pid_to_idx.get(pid, 0)] if pid in pid_to_idx else persona_ids[0]
         segments = _segment_by_goal(gp)
-        for goal_id, phases in segments:
+        # Apply sub-segmentation to split at terminal states (succeeded/failed)
+        sub_segments = _sub_segment_by_attempt(segments)
+        for goal_id, phases in sub_segments:
             if not phases or goal_id not in goal_ids or len(phases) < 2:
                 continue
             for i in range(len(phases) - 1):
                 key = (phases[i], phases[i + 1])
                 counts[key] = counts.get(key, 0) + 1
-    return counts
+                if goal_id in per_goal:
+                    per_goal[goal_id][key] = per_goal[goal_id].get(key, 0) + 1
+
+    return {
+        "global": counts,
+        "per_goal": per_goal,
+        "total_steps": total_steps,
+        "total_nested_transitions": sum(counts.values()),
+    }
 
 
 def _relabel_stats(trajectory_paths: list[Path]) -> dict:
@@ -205,7 +243,9 @@ def _segment_counts_per_cell(
         pid, gp = _get_label_sequences(path)
         persona_id = persona_ids[pid_to_idx.get(pid, 0)] if pid in pid_to_idx else persona_ids[0]
         segments = _segment_by_goal(gp)
-        for goal_id, phases in segments:
+        # Apply sub-segmentation to split at terminal states
+        sub_segments = _sub_segment_by_attempt(segments)
+        for goal_id, phases in sub_segments:
             if not phases or goal_id not in goal_ids:
                 continue
             key = (persona_id, goal_id)
@@ -233,11 +273,15 @@ def run_em_verification(
     use_em: bool = True,
     em_iters: int = 30,
     run_simulator_if_missing: bool = True,
+    save_plot_path: Path | str | None = None,
 ) -> EMVerificationResult:
     """
     Run end-to-end EM verification: (optionally generate and) load trajectories with labels,
     optionally add noise, run EM to estimate nested transition matrix, compare to ground-truth.
     Pass if max_abs_diff <= tolerance.
+
+    Sanity check: run with --phase-error 0 --persona-error 0 (and optionally --no-em) to verify
+    recovery without label noise; large errors there would indicate a bug.
     """
     base_dir = Path(base_dir or DEFAULT_EXPERIMENTS_DIR)
     exp_dir = experiment_dir(base_dir, experiment_id)
@@ -313,13 +357,39 @@ def run_em_verification(
         logger.info("[em verifier] Using %d noisy samples", len(sample_paths))
 
     logger.info("[em verifier] Estimating transitions (%s, max_iters=%d)...", "EM" if use_em else "MLE", em_iters)
+
+    # Debug logging: show raw transitions for persona_0/write_abstract (highest error cell)
+    if not use_em and "persona_0" in persona_ids and "write_abstract" in goal_ids:
+        logger.info("[em verifier] Debug: showing raw transitions for persona_0/write_abstract...")
+        from expforge.estimator.counts import get_label_sequences_batch, compute_nested_transition_counts_from_labels
+        pid_to_idx = {p: i for i, p in enumerate(persona_ids)}
+        gid_to_idx = {g: i for i, g in enumerate(goal_ids)}
+        persona_indices, goal_phase = get_label_sequences_batch(
+            sample_paths, pid_to_idx, gid_to_idx
+        )
+        goal_cluster_labels = [[g for g, _ in row] for row in goal_phase]
+        goal_phase_with_ids = [
+            [(goal_ids[g] if g >= 0 else '', ph) for g, ph in row] for row in goal_phase
+        ]
+        # Use integer keys for MLE path (persona_idx, goal_idx)
+        p0_idx = persona_ids.index("persona_0")
+        wa_idx = goal_ids.index("write_abstract")
+        debug_counts = compute_nested_transition_counts_from_labels(
+            sample_paths,
+            persona_indices,
+            goal_phase_with_ids,
+            goal_cluster_labels,
+            debug_cell=(p0_idx, wa_idx),
+        )
+        logger.info("[em verifier] Debug counts returned: %s", {k: dict(v) for k, v in debug_counts.items() if k == (p0_idx, wa_idx)})
+
     result = estimate_transitions_from_labels(
         sample_paths,
         persona_ids,
         goal_ids,
         use_em=use_em,
         em_iters=em_iters,
-        initial_error_rate=0.05,
+        initial_error_rate=phase_error_rate,  # Use actual phase error rate for EM initialization
     )
     estimated = result.get("nested", {})
     logger.info("[em verifier] Comparing to ground truth...")
@@ -328,8 +398,25 @@ def run_em_verification(
     segment_counts = _segment_counts_per_cell(sample_paths, persona_ids, goal_ids)
     traj_length_dist = _trajectory_length_distribution(sample_paths)
     transition_type_counts = _transition_type_counts(sample_paths, persona_ids, goal_ids)
+    outcome_counts = _outcome_counts(sample_paths)
     relabel_stats = _relabel_stats(sample_paths)
     passed = max_diff <= tolerance
+
+    if save_plot_path:
+        try:
+            from expforge.verifier.em_heatmaps import plot_em_heatmaps
+            out_path = plot_em_heatmaps(
+                ground_truth,
+                estimated,
+                Path(save_plot_path),
+                persona_ids=persona_ids,
+                goal_ids=goal_ids,
+                transitions_path=transitions_path,
+            )
+            logger.info("[em verifier] Saved heatmaps to %s", out_path)
+        except Exception as e:
+            logger.warning("[em verifier] Could not save heatmaps: %s", e)
+
     return EMVerificationResult(
         experiment_id=experiment_id,
         n_samples=len(sample_paths),
@@ -346,6 +433,7 @@ def run_em_verification(
             "segment_counts": segment_counts,
             "traj_length_dist": traj_length_dist,
             "transition_type_counts": transition_type_counts,
+            "outcome_counts": outcome_counts,
             "relabel_stats": relabel_stats,
         },
     )

@@ -79,3 +79,26 @@ def expected_trajectory_length_squared(
     et = float(alpha @ N @ np.ones(n))
     et2 = 2.0 * float(alpha @ N @ N @ np.ones(n)) - et
     return et2
+
+
+def expected_visits_outcome_states(
+    transition_matrix: dict[str, Any],
+    persona_id: str,
+    goal_ids: list[str],
+) -> tuple[float, float]:
+    """(E[# visits to publish], E[# visits to subscribe]) for one persona.
+
+    From the fundamental matrix N, expected visits from initial distribution
+    is alpha' N; the publish and subscribe state columns give these expectations.
+    """
+    from expforge.theory.chain import outcome_state_index
+
+    Q, R, alpha = build_chain_matrices(transition_matrix, persona_id, goal_ids)
+    N, _ = fundamental_matrix(Q, R, alpha)
+    n_goals = len(goal_ids)
+    expected_visits = alpha @ N
+    pub_idx = outcome_state_index("publish", n_goals)
+    sub_idx = outcome_state_index("subscribe", n_goals)
+    e_pub = float(expected_visits[pub_idx])
+    e_sub = float(expected_visits[sub_idx])
+    return e_pub, e_sub
